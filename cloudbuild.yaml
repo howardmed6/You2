@@ -78,8 +78,7 @@ substitutions:
   _TELEGRAM_BOT_TOKEN: "8088691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUo"
   _TELEGRAM_CHAT_ID: "8088691958"
 
-logsBucket: "gs://${PROJECT_ID}_cloudbuild"
-
 options:
   logging: CLOUD_LOGGING_ONLY
+  logsBucket: "gs://${PROJECT_ID}_cloudbuild"
   machineType: "N1_HIGHCPU_8"
