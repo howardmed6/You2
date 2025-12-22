@@ -59,19 +59,16 @@ steps:
     id: 'download-data'
     waitFor: ['install-deps']
 
-  # Ejecutar scripts según SCRIPTS variable
+  # Ejecutar scripts según _SCRIPTS variable
   - name: 'python:3.11'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        SCRIPTS="${_SCRIPTS}"
-        TELEGRAM_IDS="${_TELEGRAM_IDS}"
+        IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
         
-        IFS=',' read -ra SCRIPT_ARRAY <<< "$SCRIPTS"
-        
-        for script_num in "${SCRIPT_ARRAY[@]}"; do
-          case $script_num in
+        for script_num in "$${SCRIPT_ARRAY[@]}"; do
+          case $$script_num in
             1)
               echo "🚀 Ejecutando script 1: Obtener URLs"
               python 1_obtenerurls.py
@@ -86,8 +83,8 @@ steps:
               ;;
             4)
               echo "✏️ Ejecutando script 4: Cambiar status"
-              if [ -n "$TELEGRAM_IDS" ]; then
-                python 4_cambiar_status.py "$TELEGRAM_IDS"
+              if [ -n "${_TELEGRAM_IDS}" ]; then
+                python 4_cambiar_status.py "${_TELEGRAM_IDS}"
               else
                 echo "⚠️ No se proporcionaron IDs de Telegram"
               fi
@@ -97,7 +94,7 @@ steps:
               python 5_limpiar_no_seleccionados.py
               ;;
             *)
-              echo "⚠️ Script $script_num no reconocido"
+              echo "⚠️ Script $$script_num no reconocido"
               ;;
           esac
         done
