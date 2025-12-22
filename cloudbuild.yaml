@@ -1,17 +1,32 @@
 steps:
-  # Instalar dependencias
+  # Instalar dependencias Google Drive primero
   - name: "python:3.11"
+    entrypoint: "pip"
     args:
-      - "pip"
+      - "install"
+      - "google-auth==2.23.4"
+      - "google-auth-oauthlib==1.1.0"
+      - "google-auth-httplib2==0.1.1"
+      - "google-api-python-client==2.108.0"
+      - "requests==2.31.0"
+      - "--break-system-packages"
+    id: "install-google-deps"
+
+  # Instalar resto de dependencias
+  - name: "python:3.11"
+    entrypoint: "pip"
+    args:
       - "install"
       - "-r"
       - "requirements.txt"
       - "--break-system-packages"
     id: "install-deps"
+    waitFor: ["install-google-deps"]
 
   # Descargar data.json desde Google Drive
   - name: "python:3.11"
-    args: ["python", "download_data.py"]
+    entrypoint: "python"
+    args: ["download_data.py"]
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "download-data"
     waitFor: ["install-deps"]
@@ -44,7 +59,8 @@ steps:
 
   # Subir data.json actualizado a Google Drive
   - name: "python:3.11"
-    args: ["python", "upload_data.py"]
+    entrypoint: "python"
+    args: ["upload_data.py"]
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "upload-data"
     waitFor: ["run-scripts"]
