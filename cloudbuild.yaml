@@ -4,9 +4,7 @@ steps:
     entrypoint: "bash"
     args:
       - "-c"
-      - |
-        pip install -r requirements.txt --break-system-packages
-        pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client --break-system-packages
+      - "pip install -r requirements.txt --break-system-packages && pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client --break-system-packages"
     id: "install-deps"
 
   # Descargar data.json desde Google Drive
@@ -14,12 +12,7 @@ steps:
     entrypoint: "bash"
     args:
       - "-c"
-      - |
-        ls -la
-        echo "Ejecutando download_data.py..."
-        python download_data.py
-        echo "✅ Descarga completada"
-        ls -la data.json
+      - "ls -la && echo 'Ejecutando download_data.py...' && python download_data.py && echo '✅ Descarga completada' && ls -la data.json"
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "download-data"
     waitFor: ["install-deps"]
@@ -31,9 +24,8 @@ steps:
       - "-c"
       - |
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
-        
-        for script_num in "$${SCRIPT_ARRAY[@]}"; do
-          case $$script_num in
+        for script_num in "${SCRIPT_ARRAY[@]}"; do
+          case $script_num in
             1)
               echo "🚀 Ejecutando script 1: Obtener URLs"
               python 1_obtenerurls.py
@@ -59,7 +51,7 @@ steps:
               python 5_limpiar_no_seleccionados.py
               ;;
             *)
-              echo "⚠️ Script $$script_num no reconocido"
+              echo "⚠️ Script $script_num no reconocido"
               ;;
           esac
         done
