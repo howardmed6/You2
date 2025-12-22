@@ -55,7 +55,6 @@ steps:
     env:
       - 'TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}'
       - 'TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}'
-      - 'ANTHROPIC_API_KEY=${_ANTHROPIC_API_KEY}'
     id: 'run-scripts'
     waitFor: ['download-data']
 
@@ -77,7 +76,6 @@ substitutions:
   _TELEGRAM_IDS: ''
   _TELEGRAM_BOT_TOKEN: '8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDU'
   _TELEGRAM_CHAT_ID: '8599691958'
-  _ANTHROPIC_API_KEY: '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'
 
 options:
   logging: CLOUD_LOGGING_ONLY
