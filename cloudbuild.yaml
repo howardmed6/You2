@@ -2,61 +2,13 @@ steps:
   # Instalar dependencias
   - name: 'python:3.11'
     entrypoint: 'pip'
-    args: ['install', '-r', 'requirements.txt']
+    args: ['install', '-r', 'requirements.txt', '--user']
     id: 'install-deps'
 
   # Descargar data.json desde Google Drive
   - name: 'python:3.11'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        python << 'EOF'
-        import os
-        import json
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-        from googleapiclient.http import MediaIoBaseDownload
-        import io
-        
-        folder_id = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
-        credentials_json = os.environ.get('GOOGLE_DRIVE_CREDENTIALS')
-        
-        if credentials_json:
-            credentials_info = json.loads(credentials_json)
-            credentials = Credentials.from_service_account_info(
-                credentials_info, 
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
-            
-            service = build('drive', 'v3', credentials=credentials)
-            
-            # Buscar data.json
-            results = service.files().list(
-                q=f"'{folder_id}' in parents and name='data.json' and trashed=false",
-                fields="files(id,name)"
-            ).execute()
-            
-            files = results.get('files', [])
-            
-            if files:
-                file_id = files[0]['id']
-                request = service.files().get_media(fileId=file_id)
-                
-                with open('data.json', 'wb') as f:
-                    downloader = MediaIoBaseDownload(f, request)
-                    done = False
-                    while not done:
-                        status, done = downloader.next_chunk()
-                
-                print("✅ data.json descargado")
-            else:
-                print("⚠️ data.json no encontrado, creando nuevo")
-                with open('data.json', 'w') as f:
-                    json.dump([], f)
-        else:
-            print("❌ Credenciales no configuradas")
-        EOF
+    entrypoint: 'python'
+    args: ['download_data.py']
     secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
     id: 'download-data'
     waitFor: ['install-deps']
@@ -100,67 +52,17 @@ steps:
               ;;
           esac
         done
+    env:
+      - 'TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}'
+      - 'TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}'
+      - 'ANTHROPIC_API_KEY=${_ANTHROPIC_API_KEY}'
     id: 'run-scripts'
     waitFor: ['download-data']
 
   # Subir data.json actualizado a Google Drive
   - name: 'python:3.11'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        python << 'EOF'
-        import os
-        import json
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-        from googleapiclient.http import MediaFileUpload
-        
-        folder_id = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
-        credentials_json = os.environ.get('GOOGLE_DRIVE_CREDENTIALS')
-        
-        if credentials_json:
-            credentials_info = json.loads(credentials_json)
-            credentials = Credentials.from_service_account_info(
-                credentials_info, 
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
-            
-            service = build('drive', 'v3', credentials=credentials)
-            
-            # Buscar si existe data.json
-            results = service.files().list(
-                q=f"'{folder_id}' in parents and name='data.json' and trashed=false",
-                fields="files(id)"
-            ).execute()
-            
-            files = results.get('files', [])
-            
-            media = MediaFileUpload('data.json', mimetype='application/json')
-            
-            if files:
-                # Actualizar archivo existente
-                file_id = files[0]['id']
-                service.files().update(
-                    fileId=file_id,
-                    media_body=media
-                ).execute()
-                print("✅ data.json actualizado en Google Drive")
-            else:
-                # Crear nuevo archivo
-                file_metadata = {
-                    'name': 'data.json',
-                    'parents': [folder_id]
-                }
-                service.files().create(
-                    body=file_metadata,
-                    media_body=media,
-                    fields='id'
-                ).execute()
-                print("✅ data.json creado en Google Drive")
-        else:
-            print("❌ Credenciales no configuradas")
-        EOF
+    entrypoint: 'python'
+    args: ['upload_data.py']
     secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
     id: 'upload-data'
     waitFor: ['run-scripts']
@@ -171,8 +73,11 @@ availableSecrets:
       env: 'GOOGLE_DRIVE_CREDENTIALS'
 
 substitutions:
-  _SCRIPTS: '1,2,3'  # Scripts a ejecutar separados por coma
-  _TELEGRAM_IDS: ''   # IDs de videos para script 4 (vacío por defecto)
+  _SCRIPTS: '1,2,3'
+  _TELEGRAM_IDS: ''
+  _TELEGRAM_BOT_TOKEN: '8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDU'
+  _TELEGRAM_CHAT_ID: '8599691958'
+  _ANTHROPIC_API_KEY: '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'
 
 options:
   logging: CLOUD_LOGGING_ONLY
