@@ -1,26 +1,35 @@
 steps:
   # Instalar dependencias
-  - name: 'python:3.11'
-    entrypoint: 'pip'
-    args: ['install', '-r', 'requirements.txt', '--user']
-    id: 'install-deps'
+  - name: "python:3.11"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        pip install -r requirements.txt --break-system-packages
+        pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client --break-system-packages
+    id: "install-deps"
 
   # Descargar data.json desde Google Drive
-  - name: 'python:3.11'
-    entrypoint: 'python'
-    args: ['download_data.py']
-    secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
-    id: 'download-data'
-    waitFor: ['install-deps']
+  - name: "python:3.11"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        ls -la
+        echo "Ejecutando download_data.py..."
+        python download_data.py
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    id: "download-data"
+    waitFor: ["install-deps"]
 
   # Ejecutar scripts según _SCRIPTS variable
-  - name: 'python:3.11'
-    entrypoint: 'bash'
+  - name: "python:3.11"
+    entrypoint: "bash"
     args:
-      - '-c'
+      - "-c"
       - |
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
-        
+
         for script_num in "$${SCRIPT_ARRAY[@]}"; do
           case $$script_num in
             1)
@@ -53,30 +62,30 @@ steps:
           esac
         done
     env:
-      - 'TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}'
-      - 'TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}'
-    id: 'run-scripts'
-    waitFor: ['download-data']
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    id: "run-scripts"
+    waitFor: ["download-data"]
 
   # Subir data.json actualizado a Google Drive
-  - name: 'python:3.11'
-    entrypoint: 'python'
-    args: ['upload_data.py']
-    secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
-    id: 'upload-data'
-    waitFor: ['run-scripts']
+  - name: "python:3.11"
+    entrypoint: "python"
+    args: ["upload_data.py"]
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    id: "upload-data"
+    waitFor: ["run-scripts"]
 
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/GOOGLE_DRIVE_CREDENTIALS/versions/latest
-      env: 'GOOGLE_DRIVE_CREDENTIALS'
+      env: "GOOGLE_DRIVE_CREDENTIALS"
 
 substitutions:
-  _SCRIPTS: '1,2,3'
-  _TELEGRAM_IDS: ''
-  _TELEGRAM_BOT_TOKEN: '8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDU'
-  _TELEGRAM_CHAT_ID: '8599691958'
+  _SCRIPTS: "1,2,3"
+  _TELEGRAM_IDS: ""
+  _TELEGRAM_BOT_TOKEN: "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDU"
+  _TELEGRAM_CHAT_ID: "8599691958"
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'N1_HIGHCPU_8'
+  machineType: "N1_HIGHCPU_8"
