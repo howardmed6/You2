@@ -1,18 +1,17 @@
 steps:
   # Instalar dependencias
   - name: "python:3.11"
-    entrypoint: "bash"
     args:
-      - "-c"
-      - "pip install -r requirements.txt --break-system-packages && pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client --break-system-packages"
+      - "pip"
+      - "install"
+      - "-r"
+      - "requirements.txt"
+      - "--break-system-packages"
     id: "install-deps"
 
   # Descargar data.json desde Google Drive
   - name: "python:3.11"
-    entrypoint: "bash"
-    args:
-      - "-c"
-      - "ls -la && echo 'Ejecutando download_data.py...' && python download_data.py && echo '✅ Descarga completada' && ls -la data.json"
+    args: ["python", "download_data.py"]
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "download-data"
     waitFor: ["install-deps"]
@@ -26,33 +25,15 @@ steps:
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
         for script_num in "${SCRIPT_ARRAY[@]}"; do
           case $script_num in
-            1)
-              echo "🚀 Ejecutando script 1: Obtener URLs"
-              python 1_obtenerurls.py
-              ;;
-            2)
-              echo "🤖 Ejecutando script 2: Extraer info con IA"
-              python 2_extraerinfovideospotenciales.py
-              ;;
-            3)
-              echo "📱 Ejecutando script 3: Notificar a Telegram"
-              python 3_notificar_descartados.py
-              ;;
-            4)
-              echo "✏️ Ejecutando script 4: Cambiar status"
+            1) python 1_obtenerurls.py ;;
+            2) python 2_extraerinfovideospotenciales.py ;;
+            3) python 3_notificar_descartados.py ;;
+            4) 
               if [ -n "${_TELEGRAM_IDS}" ]; then
                 python 4_cambiar_status.py "${_TELEGRAM_IDS}"
-              else
-                echo "⚠️ No se proporcionaron IDs de Telegram"
               fi
               ;;
-            5)
-              echo "🧹 Ejecutando script 5: Limpiar no seleccionados"
-              python 5_limpiar_no_seleccionados.py
-              ;;
-            *)
-              echo "⚠️ Script $script_num no reconocido"
-              ;;
+            5) python 5_limpiar_no_seleccionados.py ;;
           esac
         done
     env:
@@ -63,8 +44,7 @@ steps:
 
   # Subir data.json actualizado a Google Drive
   - name: "python:3.11"
-    entrypoint: "python"
-    args: ["upload_data.py"]
+    args: ["python", "upload_data.py"]
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "upload-data"
     waitFor: ["run-scripts"]
