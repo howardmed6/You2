@@ -18,6 +18,8 @@ steps:
         ls -la
         echo "Ejecutando download_data.py..."
         python download_data.py
+        echo "✅ Descarga completada"
+        ls -la data.json
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     id: "download-data"
     waitFor: ["install-deps"]
@@ -29,7 +31,7 @@ steps:
       - "-c"
       - |
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
-
+        
         for script_num in "$${SCRIPT_ARRAY[@]}"; do
           case $$script_num in
             1)
@@ -83,8 +85,8 @@ availableSecrets:
 substitutions:
   _SCRIPTS: "1,2,3"
   _TELEGRAM_IDS: ""
-  _TELEGRAM_BOT_TOKEN: "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDU"
-  _TELEGRAM_CHAT_ID: "8599691958"
+  _TELEGRAM_BOT_TOKEN: "8088691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUo"
+  _TELEGRAM_CHAT_ID: "8088691958"
 
 options:
   logging: CLOUD_LOGGING_ONLY
