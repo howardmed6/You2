@@ -80,4 +80,4 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY  # Cambia NONE por esto
-  machineType: "N1_HIGHCPU_8"
+  machineType: "UNSPECIFIED"
