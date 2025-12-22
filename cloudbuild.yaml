@@ -79,5 +79,6 @@ substitutions:
   _TELEGRAM_CHAT_ID: "8088691958"
 
 options:
-  logging: NONE
+  logging: CLOUD_LOGGING_ONLY
+  logsBucket: "gs://${PROJECT_ID}_cloudbuild"
   machineType: "N1_HIGHCPU_8"
