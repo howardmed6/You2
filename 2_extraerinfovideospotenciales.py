@@ -3,7 +3,7 @@ import requests
 
 def analizar_videos():
     # OPENAI API KEY - Obtener en https://platform.openai.com/api-keys
-    API_KEY = "sk-xxx"  # REEMPLAZAR CON TU API KEY
+    API_KEY = "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"  # REEMPLAZAR CON TU API KEY
     
     # MODELO A USAR - Opciones: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
     MODEL = "gpt-4o-mini"  # Más barato y rápido

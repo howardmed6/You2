@@ -6,7 +6,7 @@ def notificar_descartados():
     BOT_TOKEN = "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUs"
     
     # TU CHAT ID - Escribe a @userinfobot en Telegram para obtenerlo
-    CHAT_ID = "TU_CHAT_ID"  # REEMPLAZAR (ej: "123456789")
+    CHAT_ID = "8599691958"  # REEMPLAZAR (ej: "123456789")
     
     # Cargar videos
     with open("data.json", 'r', encoding='utf-8') as f:
