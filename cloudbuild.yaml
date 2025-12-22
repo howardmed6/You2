@@ -7,10 +7,11 @@ steps:
 
   # Descargar data.json desde Google Drive
   - name: 'python:3.11'
-    entrypoint: 'python'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
+        python << 'EOF'
         import os
         import json
         from google.oauth2.service_account import Credentials
@@ -55,6 +56,7 @@ steps:
                     json.dump([], f)
         else:
             print("❌ Credenciales no configuradas")
+        EOF
     secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
     id: 'download-data'
     waitFor: ['install-deps']
@@ -103,10 +105,11 @@ steps:
 
   # Subir data.json actualizado a Google Drive
   - name: 'python:3.11'
-    entrypoint: 'python'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
+        python << 'EOF'
         import os
         import json
         from google.oauth2.service_account import Credentials
@@ -157,6 +160,7 @@ steps:
                 print("✅ data.json creado en Google Drive")
         else:
             print("❌ Credenciales no configuradas")
+        EOF
     secretEnv: ['GOOGLE_DRIVE_CREDENTIALS']
     id: 'upload-data'
     waitFor: ['run-scripts']
