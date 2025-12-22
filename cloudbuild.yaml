@@ -77,5 +77,5 @@ substitutions:
   _TELEGRAM_CHAT_ID: "8088691958"
 
 options:
-  logging: CLOUD_LOGGING_ONLY
+  logging: LEGACY
   machineType: "N1_HIGHCPU_8"
