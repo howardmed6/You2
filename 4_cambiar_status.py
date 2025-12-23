@@ -1,7 +1,7 @@
 import json
 import sys
 
-def cambiar_a_seleccionado(ids_str):
+def cambiar_a_seleccionado(ids_str): 
     # Cargar videos
     with open("data.json", 'r', encoding='utf-8') as f:
         videos = json.load(f)
