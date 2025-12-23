@@ -1,40 +1,50 @@
 import os
 import json
 import sys
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
-print("=== INICIANDO UPLOAD_DATA.PY ===")
+print("=== INICIANDO DOWNLOAD_DATA.PY ===")
+print(f"Python version: {sys.version}")
 
-folder_id = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
+# Verificar que la variable existe
 credentials_json = os.environ.get('GOOGLE_DRIVE_CREDENTIALS')
+print(f"GOOGLE_DRIVE_CREDENTIALS existe: {credentials_json is not None}")
 
 if not credentials_json:
-    print("❌ ERROR: Credenciales no configuradas")
+    print("❌ ERROR: Variable GOOGLE_DRIVE_CREDENTIALS no encontrada")
+    print("Variables de entorno disponibles:")
+    for key in os.environ.keys():
+        if 'GOOGLE' in key or 'CREDENTIALS' in key:
+            print(f"  - {key}")
     sys.exit(1)
 
+print(f"Longitud de credenciales: {len(credentials_json)} caracteres")
+
 try:
-    # Verificar que data.json existe localmente
-    if not os.path.exists('data.json'):
-        print("❌ ERROR: data.json no existe localmente")
-        sys.exit(1)
+    from google.oauth2.service_account import Credentials
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    import io
     
-    size = os.path.getsize('data.json')
-    print(f"📄 Archivo local data.json: {size} bytes")
+    print("✅ Imports exitosos")
+    
+    folder_id = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
+    
+    # Parsear credenciales
+    credentials_info = json.loads(credentials_json)
+    print("✅ JSON parseado correctamente")
     
     # Crear credenciales
-    credentials_info = json.loads(credentials_json)
     credentials = Credentials.from_service_account_info(
         credentials_info, 
         scopes=['https://www.googleapis.com/auth/drive']
     )
     print("✅ Credenciales creadas")
     
+    # Construir servicio
     service = build('drive', 'v3', credentials=credentials)
     print("✅ Servicio de Drive construido")
     
-    # Buscar data.json existente
+    # Buscar archivo
     print(f"🔍 Buscando data.json en carpeta: {folder_id}")
     results = service.files().list(
         q=f"'{folder_id}' in parents and name='data.json' and trashed=false",
@@ -44,25 +54,32 @@ try:
     files = results.get('files', [])
     print(f"Archivos encontrados: {len(files)}")
     
-    if not files:
-        print("❌ ERROR: data.json no existe en Google Drive")
-        print("SOLUCIÓN: Crea manualmente un archivo data.json en la carpeta de Drive primero")
-        print("Contenido inicial sugerido: []")
-        sys.exit(1)
+    if files:
+        file_id = files[0]['id']
+        print(f"✅ Archivo encontrado: {files[0]['name']} (ID: {file_id})")
+        
+        # Descargar
+        request = service.files().get_media(fileId=file_id)
+        with open('data.json', 'wb') as f:
+            downloader = MediaIoBaseDownload(f, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+        
+        size = os.path.getsize('data.json')
+        print(f"✅ Descargado: {size} bytes")
+        
+        # Validar JSON
+        with open('data.json', 'r') as f:
+            data = json.load(f)
+        print(f"✅ JSON válido con {len(data)} registros")
+    else:
+        print("⚠️ Archivo no encontrado, creando vacío")
+        with open('data.json', 'w') as f:
+            json.dump([], f)
+        print("✅ Archivo vacío creado")
     
-    # SIEMPRE actualizar (nunca crear)
-    file_id = files[0]['id']
-    print(f"📤 Actualizando archivo: {files[0]['name']} (ID: {file_id})")
-    
-    media = MediaFileUpload('data.json', mimetype='application/json')
-    
-    service.files().update(
-        fileId=file_id,
-        media_body=media
-    ).execute()
-    
-    print("✅ data.json actualizado exitosamente en Google Drive")
-    print("=== UPLOAD COMPLETADO ===")
+    print("=== DOWNLOAD COMPLETADO ===")
 
 except Exception as e:
     print(f"❌ ERROR: {type(e).__name__}: {e}")
