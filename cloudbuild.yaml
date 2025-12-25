@@ -1,12 +1,12 @@
 steps:
-  # Paso 1: Instalar todas las dependencias de una vez y descargar data.json
+  # Paso 1: Instalar dependencias y descargar data.json
   - name: "python:3.11"
     id: "download-data"
     entrypoint: "bash"
     args:
       - "-c"
       - |
-        pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests --break-system-packages
+        pip install -r requirements.txt --break-system-packages
         python download_data.py
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
 
@@ -17,6 +17,7 @@ steps:
     args:
       - "-c"
       - |
+        pip install -r requirements.txt --break-system-packages
         echo "Scripts a ejecutar: ${_SCRIPTS}"
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
         for script_num in "${SCRIPT_ARRAY[@]}"; do
@@ -39,7 +40,6 @@ steps:
     env:
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
       - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
-    # Aquí pasamos ambos secretos como variables de entorno
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["download-data"]
 
@@ -50,6 +50,7 @@ steps:
     args:
       - "-c"
       - |
+        pip install -r requirements.txt --break-system-packages
         python upload_data.py
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["run-scripts"]
