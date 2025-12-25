@@ -18,20 +18,27 @@ steps:
       - "-c"
       - |
         pip install requests --break-system-packages
+        echo "Scripts a ejecutar: ${_SCRIPTS}"
+        echo "IDs de Telegram: ${_TELEGRAM_IDS}"
         IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
         for script_num in "${SCRIPT_ARRAY[@]}"; do
+          echo "Ejecutando script $script_num"
           case $script_num in
             1) python 1_obtenerurls.py ;;
             2) python 2_extraerinfovideospotenciales.py ;;
             3) python 3_notificar_descartados.py ;;
             4) 
               if [ -n "${_TELEGRAM_IDS}" ]; then
+                echo "Ejecutando script 4 con IDs: ${_TELEGRAM_IDS}"
                 python 4_cambiar_status.py "${_TELEGRAM_IDS}"
+              else
+                echo "Script 4 omitido: no hay IDs"
               fi
               ;;
             5) python 5_limpiar_no_seleccionados.py ;;
           esac
         done
+        echo "Scripts completados"
     env:
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
       - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
@@ -62,4 +69,6 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitutionOption: "ALLOW_LOOSE"  # Permite sustituciones dinámicas
+  dynamicSubstitutions: true          # Habilita sustituciones en runtime
   machineType: "UNSPECIFIED"
