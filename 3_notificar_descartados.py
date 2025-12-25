@@ -31,13 +31,13 @@ def notificar_descartados():
         print("✓ No hay videos descartados")
         return
     
-    # Construir mensaje
-    mensaje = f"🚫 *Videos descartados ({len(descartados)})*\n\n"
+    # Construir mensaje sin Markdown
+    mensaje = f"🚫 Videos descartados ({len(descartados)})\n\n"
     for v in descartados:
         video_id = v.get('video_id', 'N/A')
         title = v.get('title', 'Sin título')[:100]
         url = v.get('url', 'N/A')
-        mensaje += f"ID: `{video_id}`\n📺 {title}\n🔗 {url}\n\n"
+        mensaje += f"ID: {video_id}\n📺 {title}\n🔗 {url}\n\n"
     
     # Enviar a Telegram (dividir si es muy largo)
     max_len = 4000
@@ -48,7 +48,7 @@ def notificar_descartados():
         try:
             response = requests.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": CHAT_ID, "text": parte, "parse_mode": "Markdown"},
+                json={"chat_id": CHAT_ID, "text": parte},
                 timeout=10
             )
             
