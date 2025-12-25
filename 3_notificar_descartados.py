@@ -4,8 +4,12 @@ import os
 
 def notificar_descartados():
     # Obtener configuración desde variables de entorno
-    BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUs")
-    CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "6166225652")  # Tu chat ID real
+    BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+    CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Error: Variables TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configuradas")
+        return
     
     print(f"Usando BOT_TOKEN: {BOT_TOKEN[:20]}...")
     print(f"Usando CHAT_ID: {CHAT_ID}")
@@ -31,7 +35,7 @@ def notificar_descartados():
     mensaje = f"🚫 *Videos descartados ({len(descartados)})*\n\n"
     for v in descartados:
         video_id = v.get('video_id', 'N/A')
-        title = v.get('title', 'Sin título')[:100]  # Limitar título
+        title = v.get('title', 'Sin título')[:100]
         url = v.get('url', 'N/A')
         mensaje += f"ID: `{video_id}`\n📺 {title}\n🔗 {url}\n\n"
     
