@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import time
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
@@ -92,7 +93,8 @@ try:
     )
     
     send_telegram("⏳ Procesando video con IA...")
-    result = operation.result(timeout=600)
+    # Timeout de 15 minutos para videos pesados
+    result = operation.result(timeout=900)
     
     # Obtener shots
     shots = result.annotation_results[0].shot_annotations
@@ -102,17 +104,19 @@ try:
         sys.exit(1)
     
     # Seleccionar shot del medio (mejor representativo)
-    middle_shot = shots[len(shots) // 2]
+    index_medio = len(shots) // 2
+    middle_shot = shots[index_medio]
     
-    # Calcular tiempo del medio del shot
-    start_seconds = middle_shot.start_time_offset.seconds
-    start_nanos = middle_shot.start_time_offset.nanos
-    end_seconds = middle_shot.end_time_offset.seconds
-    end_nanos = middle_shot.end_time_offset.nanos
+    # --- CORRECCIÓN DE DATETIME.TIMEDELTA ---
+    # Usamos total_seconds() para evitar el error de '.nanos'
+    start_ts = middle_shot.start_time_offset.total_seconds()
+    end_ts = middle_shot.end_time_offset.total_seconds()
     
-    # Promedio para obtener punto medio
-    best_seconds = (start_seconds + end_seconds) // 2
-    best_nanos = (start_nanos + end_nanos) // 2
+    # Promedio para obtener punto medio del shot
+    punto_medio_segundos = (start_ts + end_ts) / 2
+    
+    best_seconds = int(punto_medio_segundos)
+    best_micros = int((punto_medio_segundos - best_seconds) * 1_000_000)
     
     # Guardar resultado
     registro = {
@@ -120,20 +124,22 @@ try:
         "video_drive_id": video_file['id'],
         "start_time_offset": {
             "seconds": best_seconds,
-            "nanos": best_nanos
+            "micros": best_micros
         },
         "total_shots": len(shots),
-        "shot_seleccionado": len(shots) // 2
+        "shot_seleccionado": index_medio
     }
     
     with open('registro.json', 'w') as f:
         json.dump(registro, f, indent=2)
     
     upload_file_to_folder(service, 'registro.json', FOLDER_ID)
-    send_telegram(f"✅ Script 9: Análisis completado. Shot {len(shots)//2} de {len(shots)} en {best_seconds}s")
+    send_telegram(f"✅ Script 9: Análisis completado. Shot {index_medio} de {len(shots)} en {best_seconds}s")
     
 except Exception as e:
-    send_telegram(f"❌ Script 9: {str(e)}")
+    send_telegram(f"❌ Script 9 Error: {str(e)}")
     import traceback
-    send_telegram(f"📋 {traceback.format_exc()[:400]}")
+    # Enviamos el traceback para debuggear mejor si algo más falla
+    print(traceback.format_exc())
+    send_telegram(f"📋 Detalle: {traceback.format_exc()[-200:]}")
     sys.exit(1)
