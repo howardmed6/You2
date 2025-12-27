@@ -38,12 +38,24 @@ try:
     send_telegram("🎬 Script 9: Iniciando análisis de video...")
     service = get_drive_service()
     
-    # Buscar video .mp4 en la carpeta 'SnapTube Video'
+    # Buscar video .mp4 en la carpeta 'SnapTube Video' (sin espacio adicional)
     VIDEO_FOLDER = 'SnapTube Video'
     
+    # Debug: listar archivos en el directorio actual
+    current_files = os.listdir('.')
+    send_telegram(f"📂 Archivos encontrados: {', '.join(current_files[:10])}")
+    
     if not os.path.exists(VIDEO_FOLDER):
-        send_telegram(f"❌ Carpeta '{VIDEO_FOLDER}' no encontrada")
-        sys.exit(1)
+        send_telegram(f"❌ Carpeta '{VIDEO_FOLDER}' no encontrada. Buscando alternativas...")
+        # Buscar cualquier carpeta que contenga "SnapTube"
+        for item in current_files:
+            if os.path.isdir(item) and 'SnapTube' in item:
+                VIDEO_FOLDER = item
+                send_telegram(f"✅ Carpeta encontrada: '{VIDEO_FOLDER}'")
+                break
+        else:
+            send_telegram(f"❌ No se encontró ninguna carpeta con 'SnapTube'")
+            sys.exit(1)
     
     # Buscar archivo .mp4 en la carpeta (siempre hay uno)
     video_files = [f for f in os.listdir(VIDEO_FOLDER) if f.endswith('.mp4')]
