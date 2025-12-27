@@ -37,10 +37,8 @@ def upload_file_to_folder(service, filename, folder_id):
     query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
     results = service.files().list(q=query, fields="files(id)").execute()
     files = results.get('files', [])
-    
     mimetype = 'application/json'
     media = MediaFileUpload(filename, mimetype=mimetype)
-    
     if files:
         service.files().update(fileId=files[0]['id'], media_body=media).execute()
     else:
@@ -48,98 +46,90 @@ def upload_file_to_folder(service, filename, folder_id):
         service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 try:
-    send_telegram("🎬 Script 9: Iniciando análisis con Video Intelligence API...")
+    send_telegram("🎬 Script 9: Iniciando análisis inteligente de miniatura...")
     service = get_drive_service()
     
-    # Buscar carpeta SnapTube Video
-    folder_query = f"'{FOLDER_ID}' in parents and name='SnapTube Video' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    folder_results = service.files().list(q=folder_query, fields="files(id)").execute()
-    folders = folder_results.get('files', [])
-    
-    if not folders:
-        send_telegram("❌ Carpeta SnapTube Video no encontrada")
-        sys.exit(1)
-    
-    snaptube_folder_id = folders[0]['id']
-    
     # Buscar video
+    folder_query = f"'{FOLDER_ID}' in parents and name='SnapTube Video' and trashed=false"
+    folder_results = service.files().list(q=folder_query, fields="files(id)").execute()
+    snaptube_folder_id = folder_results.get('files', [])[0]['id']
+    
     video_query = f"'{snaptube_folder_id}' in parents and mimeType contains 'video/mp4' and trashed=false"
     video_results = service.files().list(q=video_query, fields="files(id, name)").execute()
-    videos = video_results.get('files', [])
+    video_file = video_results.get('files', [])[0]
     
-    if not videos:
-        send_telegram("❌ Video no encontrado")
-        sys.exit(1)
-    
-    video_file = videos[0]
-    send_telegram(f"📹 Analizando: {video_file['name']}")
-    
-    # Descargar video
+    send_telegram(f"📹 Analizando contenido de: {video_file['name']}")
     download_file_from_drive(service, video_file['id'], 'video.mp4')
     
-    # Leer video como bytes
     with open('video.mp4', 'rb') as f:
         input_content = f.read()
     
-    # Crear cliente Video Intelligence
     creds_json = json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS'])
     creds = Credentials.from_service_account_info(creds_json)
     video_client = vi.VideoIntelligenceServiceClient(credentials=creds)
     
-    # Analizar video con Shot Change Detection
-    features = [vi.Feature.SHOT_CHANGE_DETECTION]
+    # ACTIVAMOS LABEL_DETECTION para que la IA "vea" qué hay en el video
+    features = [vi.Feature.LABEL_DETECTION, vi.Feature.SHOT_CHANGE_DETECTION]
     operation = video_client.annotate_video(
         request={"features": features, "input_content": input_content}
     )
     
-    send_telegram("⏳ Procesando video con IA...")
-    # Timeout de 15 minutos para videos pesados
+    send_telegram("⏳ La IA está buscando la mejor escena con personas y sin texto...")
     result = operation.result(timeout=900)
     
-    # Obtener shots
-    shots = result.annotation_results[0].shot_annotations
+    # Análisis de etiquetas para encontrar personas
+    labels = result.annotation_results[0].shot_label_annotations
+    best_moment = None
+    highest_confidence = 0.0
+
+    # Palabras clave que queremos (Personas) y las que no (Texto/Créditos)
+    target_labels = ["person", "human", "face", "actor"]
+    avoid_labels = ["text", "subtitle", "font", "brand", "logo"]
+
+    for label in labels:
+        description = label.entity.description.lower()
+        
+        # Si la etiqueta es sobre personas
+        if any(target in description for target in target_labels):
+            for segment in label.segments:
+                confidence = segment.confidence
+                # Priorizar segmentos con alta confianza
+                if confidence > highest_confidence:
+                    # Calculamos el punto medio de este segmento con personas
+                    start = segment.segment.start_time_offset.total_seconds()
+                    end = segment.segment.end_time_offset.total_seconds()
+                    
+                    highest_confidence = confidence
+                    best_moment = (start + end) / 2
+
+    # Si no encontró personas, usamos el método del shot central como respaldo
+    if not best_moment:
+        shots = result.annotation_results[0].shot_annotations
+        middle_shot = shots[len(shots) // 2]
+        best_moment = (middle_shot.start_time_offset.total_seconds() + middle_shot.end_time_offset.total_seconds()) / 2
+        send_telegram("⚠️ No se detectaron personas claras, usando escena central.")
+
+    best_seconds = int(best_moment)
+    best_micros = int((best_moment - best_seconds) * 1_000_000)
     
-    if not shots:
-        send_telegram("❌ No se detectaron shots")
-        sys.exit(1)
-    
-    # Seleccionar shot del medio (mejor representativo)
-    index_medio = len(shots) // 2
-    middle_shot = shots[index_medio]
-    
-    # --- CORRECCIÓN DE DATETIME.TIMEDELTA ---
-    # Usamos total_seconds() para evitar el error de '.nanos'
-    start_ts = middle_shot.start_time_offset.total_seconds()
-    end_ts = middle_shot.end_time_offset.total_seconds()
-    
-    # Promedio para obtener punto medio del shot
-    punto_medio_segundos = (start_ts + end_ts) / 2
-    
-    best_seconds = int(punto_medio_segundos)
-    best_micros = int((punto_medio_segundos - best_seconds) * 1_000_000)
-    
-    # Guardar resultado
+    # Formato mm:ss para Telegram
+    mins, secs = divmod(best_seconds, 60)
+    tiempo_formateado = f"{mins:02d}:{secs:02d}"
+
     registro = {
         "video_archivo": video_file['name'],
         "video_drive_id": video_file['id'],
-        "start_time_offset": {
-            "seconds": best_seconds,
-            "micros": best_micros
-        },
-        "total_shots": len(shots),
-        "shot_seleccionado": index_medio
+        "start_time_offset": {"seconds": best_seconds, "micros": best_micros},
+        "tiempo_legible": tiempo_formateado,
+        "metodo": "deteccion_de_personas" if highest_confidence > 0 else "shot_central"
     }
     
     with open('registro.json', 'w') as f:
         json.dump(registro, f, indent=2)
     
     upload_file_to_folder(service, 'registro.json', FOLDER_ID)
-    send_telegram(f"✅ Script 9: Análisis completado. Shot {index_medio} de {len(shots)} en {best_seconds}s")
+    send_telegram(f"✅ ¡Miniatura encontrada! Momento ideal: {tiempo_formateado} (Basado en presencia de personas)")
     
 except Exception as e:
-    send_telegram(f"❌ Script 9 Error: {str(e)}")
-    import traceback
-    # Enviamos el traceback para debuggear mejor si algo más falla
-    print(traceback.format_exc())
-    send_telegram(f"📋 Detalle: {traceback.format_exc()[-200:]}")
+    send_telegram(f"❌ Error: {str(e)}")
     sys.exit(1)
