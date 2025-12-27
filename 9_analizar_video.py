@@ -1,11 +1,11 @@
 import os
 import json
 import sys
-import subprocess
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import requests
+import cv2
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -46,93 +46,68 @@ try:
     send_telegram("🎬 Script 9: Iniciando análisis de video...")
     service = get_drive_service()
     
-    # Buscar la carpeta 'SnapTube Video' en Drive
+    # Buscar carpeta SnapTube Video
     folder_query = f"'{FOLDER_ID}' in parents and name='SnapTube Video' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     folder_results = service.files().list(q=folder_query, fields="files(id, name)").execute()
     folders = folder_results.get('files', [])
     
     if not folders:
-        send_telegram("❌ Carpeta 'SnapTube Video' no encontrada en Drive")
+        send_telegram("❌ Carpeta 'SnapTube Video' no encontrada")
         sys.exit(1)
     
     snaptube_folder_id = folders[0]['id']
-    send_telegram(f"📂 Carpeta encontrada: {folders[0]['name']}")
     
-    # Buscar video .mp4 dentro de la carpeta SnapTube Video
+    # Buscar video .mp4
     video_query = f"'{snaptube_folder_id}' in parents and mimeType contains 'video/mp4' and trashed=false"
     video_results = service.files().list(q=video_query, fields="files(id, name)").execute()
     videos = video_results.get('files', [])
     
     if not videos:
-        send_telegram("❌ Video .mp4 no encontrado en 'SnapTube Video'")
+        send_telegram("❌ Video .mp4 no encontrado")
         sys.exit(1)
     
     video_file = videos[0]
     video_filename = video_file['name']
     
-    send_telegram(f"📹 Descargando video: {video_filename}")
-    
-    # Descargar el video desde Drive
+    send_telegram(f"📹 Descargando: {video_filename}")
     download_file_from_drive(service, video_file['id'], video_filename)
     
-    if not os.path.exists(video_filename):
-        send_telegram("❌ Error descargando video desde Drive")
-        sys.exit(1)
+    # Extraer fotograma con OpenCV
+    video = cv2.VideoCapture(video_filename)
+    fps = video.get(cv2.CAP_PROP_FPS)
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps if fps > 0 else 0
     
-    send_telegram(f"✅ Video descargado: {video_filename}")
+    best_time = min(duration * 0.3, duration / 2) if duration > 0 else 5
+    target_frame = int(best_time * fps)
     
-    # Calcular duración del video
-    duration_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1', video_filename
-    ]
-    result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=30)
-    duration = float(result.stdout.strip()) if result.stdout.strip() else 0
+    video.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    ret, frame = video.read()
     
-    # Extraer fotograma del medio del video (o 30% si es muy largo)
-    if duration > 0:
-        best_time = min(duration * 0.3, duration / 2)
+    if ret:
+        cv2.imwrite('fotograma.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        video.release()
+        
+        upload_file(service, 'fotograma.jpg')
+        
+        registro = {
+            "video_archivo": video_filename,
+            "video_drive_id": video_file['id'],
+            "fotograma_segundos": int(best_time),
+            "fotograma_nanos": int(best_time * 1e9),
+            "timestamp": int(best_time),
+            "duracion_total": int(duration)
+        }
+        
+        with open('registro.json', 'w') as f:
+            json.dump(registro, f, indent=2)
+        
+        upload_file(service, 'registro.json')
+        send_telegram(f"✅ Script 9: Fotograma en {int(best_time)}s de {int(duration)}s")
     else:
-        best_time = 5  # Por defecto 5 segundos
-    
-    send_telegram(f"⏱️ Extrayendo fotograma en {int(best_time)}s de {int(duration)}s totales...")
-    
-    # Extraer fotograma usando ffmpeg
-    cmd = [
-        'ffmpeg', '-ss', str(best_time), '-i', video_filename,
-        '-vframes', '1', '-q:v', '2', '-y', 'fotograma.jpg'
-    ]
-    subprocess.run(cmd, capture_output=True, timeout=60)
-    
-    # Verificar que se creó el fotograma
-    if not os.path.exists('fotograma.jpg'):
-        send_telegram("❌ No se pudo extraer fotograma")
+        send_telegram("❌ Error extrayendo fotograma")
         sys.exit(1)
-    
-    # Subir fotograma a Drive
-    upload_file(service, 'fotograma.jpg')
-    
-    # Convertir a nanosegundos
-    nanos = int(best_time * 1e9)
-    
-    # Guardar en registro.json
-    registro = {
-        "video_archivo": video_filename,
-        "video_drive_id": video_file['id'],
-        "fotograma_segundos": int(best_time),
-        "fotograma_nanos": nanos,
-        "timestamp": int(best_time),
-        "duracion_total": int(duration)
-    }
-    
-    with open('registro.json', 'w') as f:
-        json.dump(registro, f, indent=2)
-    
-    upload_file(service, 'registro.json')
-    send_telegram(f"✅ Script 9 completado: Fotograma extraído en {int(best_time)}s y subido a Drive")
     
 except Exception as e:
-    send_telegram(f"❌ Script 9 falló: {str(e)}")
-    import traceback
-    send_telegram(f"📋 Traceback: {traceback.format_exc()[:500]}")
+    send_telegram(f"❌ Script 9: {str(e)}")
     sys.exit(1)
