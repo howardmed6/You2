@@ -43,6 +43,12 @@ steps:
               ;;
             7) python 7_elegir_con_ia.py || exit 1 ;;
             8) python 8_seleccionar_no_shorts.py || exit 1 ;;
+            9) python 9_analizar_video.py || exit 1 ;;
+            10) python 10_detectar_marcos.py || exit 1 ;;
+            11) python 11_recortar_marcos.py || exit 1 ;;
+            12) python 12_detectar_logo.py || exit 1 ;;
+            13) python 13_recortar_logo.py || exit 1 ;;
+            14) python 14_miniatura_final.py || exit 1 ;;
           esac
         done
         echo "Scripts completados"
@@ -52,7 +58,7 @@ steps:
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["download-data"]
   
-  # Paso 3: Subir archivos actualizados (data.json y descargar.json si existe)
+  # Paso 3: Subir archivos actualizados
   - name: "python:3.11"
     id: "upload-data"
     entrypoint: "bash"
@@ -61,10 +67,12 @@ steps:
       - |
         pip install -r requirements.txt --break-system-packages
         python upload_data.py
-        # Subir descargar.json si existe (scripts 6 o 7)
-        if [ -f "descargar.json" ]; then
-          python upload_descargar.py
-        fi
+        # Subir archivos generados
+        for file in descargar.json registro.json marcos.json logo.json miniatura_final.jpg; do
+          if [ -f "$file" ]; then
+            python upload_file.py "$file" || true
+          fi
+        done
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["run-scripts"]
 
@@ -78,14 +86,25 @@ availableSecrets:
 
 # Variables de sustitución
 substitutions:
-  _SCRIPTS: "1,2,3"  # Combos: "1,2,3" | "1,2,3,7" | "1,2,3,5" | "1,2,3,5,7" | "1,2,3,5,6" | "1,8" | "1,8,7"
+  _SCRIPTS: "1,2,3"  # Combos disponibles (ver abajo)
   _TELEGRAM_IDS: ""
-  _VIDEO_ELEGIDO: ""  # ID o URL del video para script 6
+  _VIDEO_ELEGIDO: ""
   _TELEGRAM_BOT_TOKEN: "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUs"
   _TELEGRAM_CHAT_ID: "6166225652"
+
+# COMBOS DISPONIBLES:
+# "1,2,3" - Básico: obtener URLs, extraer info, notificar
+# "1,2,3,7" - Básico + IA: incluye selección automática con IA
+# "1,2,3,5" - Básico + limpieza: incluye limpiar no seleccionados
+# "1,2,3,5,7" - Básico + limpieza + IA
+# "1,2,3,5,6" - Básico + limpieza + elegir video manual
+# "1,8" - URLs + seleccionar no shorts
+# "1,8,7" - URLs + no shorts + IA
+# "9,10,11,12,13,14" - Pipeline completo de miniatura
+# "1,2,3,5,7,9,10,11,12,13,14" - COMPLETO: análisis + miniatura
 
 options:
   logging: CLOUD_LOGGING_ONLY
   substitutionOption: "ALLOW_LOOSE"
   dynamicSubstitutions: true
-  machineType: "UNSPECIFIED"
+  machineType: "E2_HIGHCPU_8"  # Necesario para Vision/Video APIs
