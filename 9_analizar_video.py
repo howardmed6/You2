@@ -1,11 +1,10 @@
 import os
 import json
 import sys
-from google.cloud import videointelligence_v1 as vi
+import subprocess
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-import io
+from googleapiclient.http import MediaFileUpload
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
@@ -22,26 +21,14 @@ def get_drive_service():
     creds = Credentials.from_service_account_info(creds_json, scopes=['https://www.googleapis.com/auth/drive'])
     return build('drive', 'v3', credentials=creds)
 
-def download_file(service, filename):
-    results = service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false", fields="files(id)").execute()
-    files = results.get('files', [])
-    if not files:
-        return None
-    file_id = files[0]['id']
-    request = service.files().get_media(fileId=file_id)
-    with open(filename, 'wb') as f:
-        downloader = MediaIoBaseDownload(f, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-    return file_id
-
 def upload_file(service, filename):
-    from googleapiclient.http import MediaFileUpload
     results = service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false", fields="files(id)").execute()
     files = results.get('files', [])
     file_id = files[0]['id'] if files else None
-    media = MediaFileUpload(filename, mimetype='application/json' if filename.endswith('.json') else 'image/jpeg')
+    
+    mimetype = 'application/json' if filename.endswith('.json') else 'image/jpeg'
+    media = MediaFileUpload(filename, mimetype=mimetype)
+    
     if file_id:
         service.files().update(fileId=file_id, media_body=media).execute()
     else:
@@ -51,13 +38,6 @@ try:
     send_telegram("🎬 Script 9: Iniciando análisis de video...")
     service = get_drive_service()
     
-    # Descargar descargar.json
-    download_file(service, 'descargar.json')
-    with open('descargar.json', 'r') as f:
-        video_data = json.load(f)
-    
-    video_title = video_data.get('titulo', 'video')
-    
     # Buscar video .mp4 en la carpeta 'SnapTube Video'
     VIDEO_FOLDER = 'SnapTube Video'
     
@@ -65,7 +45,7 @@ try:
         send_telegram(f"❌ Carpeta '{VIDEO_FOLDER}' no encontrada")
         sys.exit(1)
     
-    # Buscar archivo .mp4 en la carpeta
+    # Buscar archivo .mp4 en la carpeta (siempre hay uno)
     video_files = [f for f in os.listdir(VIDEO_FOLDER) if f.endswith('.mp4')]
     
     if not video_files:
@@ -78,7 +58,6 @@ try:
     send_telegram(f"📹 Video encontrado: {video_filename}")
     
     # Calcular duración del video
-    import subprocess
     duration_cmd = [
         'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', video_path
@@ -114,7 +93,6 @@ try:
     
     # Guardar en registro.json
     registro = {
-        "titulo": video_title,
         "video_archivo": video_filename,
         "video_ruta": video_path,
         "fotograma_segundos": int(best_time),
