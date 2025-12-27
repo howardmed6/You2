@@ -4,6 +4,7 @@ import sys
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+from google.cloud import videointelligence_v1 as vi
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
@@ -31,34 +32,37 @@ def download_file_from_drive(service, file_id, destination):
         while not done:
             _, done = downloader.next_chunk()
 
-def upload_file(service, filename):
-    results = service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false", fields="files(id)").execute()
+def upload_file_to_folder(service, filename, folder_id):
+    query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
+    results = service.files().list(q=query, fields="files(id)").execute()
     files = results.get('files', [])
-    file_id = files[0]['id'] if files else None
     
-    mimetype = 'application/json' if filename.endswith('.json') else 'image/jpeg'
+    mimetype = 'application/json'
     media = MediaFileUpload(filename, mimetype=mimetype)
     
-    if file_id:
-        service.files().update(fileId=file_id, media_body=media).execute()
+    if files:
+        service.files().update(fileId=files[0]['id'], media_body=media).execute()
     else:
-        service.files().create(body={'name': filename, 'parents': [FOLDER_ID]}, media_body=media).execute()
+        file_metadata = {'name': filename, 'parents': [folder_id]}
+        service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 try:
-    send_telegram("🎬 Script 9: Iniciando...")
+    send_telegram("🎬 Script 9: Iniciando análisis con Video Intelligence API...")
     service = get_drive_service()
     
-    # Buscar carpeta
+    # Buscar carpeta SnapTube Video
     folder_query = f"'{FOLDER_ID}' in parents and name='SnapTube Video' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     folder_results = service.files().list(q=folder_query, fields="files(id)").execute()
     folders = folder_results.get('files', [])
     
     if not folders:
-        send_telegram("❌ Carpeta no encontrada")
+        send_telegram("❌ Carpeta SnapTube Video no encontrada")
         sys.exit(1)
     
+    snaptube_folder_id = folders[0]['id']
+    
     # Buscar video
-    video_query = f"'{folders[0]['id']}' in parents and mimeType contains 'video/mp4' and trashed=false"
+    video_query = f"'{snaptube_folder_id}' in parents and mimeType contains 'video/mp4' and trashed=false"
     video_results = service.files().list(q=video_query, fields="files(id, name)").execute()
     videos = video_results.get('files', [])
     
@@ -67,44 +71,69 @@ try:
         sys.exit(1)
     
     video_file = videos[0]
-    send_telegram(f"📹 Descargando...")
+    send_telegram(f"📹 Analizando: {video_file['name']}")
+    
+    # Descargar video
     download_file_from_drive(service, video_file['id'], 'video.mp4')
     
-    # Importar OpenCV DESPUÉS de descargar
-    import cv2
+    # Leer video como bytes
+    with open('video.mp4', 'rb') as f:
+        input_content = f.read()
     
-    video = cv2.VideoCapture('video.mp4')
-    fps = video.get(cv2.CAP_PROP_FPS)
-    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = total_frames / fps if fps > 0 else 0
+    # Crear cliente Video Intelligence
+    creds_json = json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS'])
+    creds = Credentials.from_service_account_info(creds_json)
+    video_client = vi.VideoIntelligenceServiceClient(credentials=creds)
     
-    best_time = min(duration * 0.3, duration / 2) if duration > 0 else 5
-    video.set(cv2.CAP_PROP_POS_FRAMES, int(best_time * fps))
-    ret, frame = video.read()
-    video.release()
+    # Analizar video con Shot Change Detection
+    features = [vi.Feature.SHOT_CHANGE_DETECTION]
+    operation = video_client.annotate_video(
+        request={"features": features, "input_content": input_content}
+    )
     
-    if not ret:
-        send_telegram("❌ Error extrayendo frame")
+    send_telegram("⏳ Procesando video con IA...")
+    result = operation.result(timeout=600)
+    
+    # Obtener shots
+    shots = result.annotation_results[0].shot_annotations
+    
+    if not shots:
+        send_telegram("❌ No se detectaron shots")
         sys.exit(1)
     
-    cv2.imwrite('fotograma.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-    upload_file(service, 'fotograma.jpg')
+    # Seleccionar shot del medio (mejor representativo)
+    middle_shot = shots[len(shots) // 2]
     
+    # Calcular tiempo del medio del shot
+    start_seconds = middle_shot.start_time_offset.seconds
+    start_nanos = middle_shot.start_time_offset.nanos
+    end_seconds = middle_shot.end_time_offset.seconds
+    end_nanos = middle_shot.end_time_offset.nanos
+    
+    # Promedio para obtener punto medio
+    best_seconds = (start_seconds + end_seconds) // 2
+    best_nanos = (start_nanos + end_nanos) // 2
+    
+    # Guardar resultado
     registro = {
         "video_archivo": video_file['name'],
         "video_drive_id": video_file['id'],
-        "fotograma_segundos": int(best_time),
-        "fotograma_nanos": int(best_time * 1e9),
-        "timestamp": int(best_time),
-        "duracion_total": int(duration)
+        "start_time_offset": {
+            "seconds": best_seconds,
+            "nanos": best_nanos
+        },
+        "total_shots": len(shots),
+        "shot_seleccionado": len(shots) // 2
     }
     
     with open('registro.json', 'w') as f:
         json.dump(registro, f, indent=2)
     
-    upload_file(service, 'registro.json')
-    send_telegram(f"✅ Completado: {int(best_time)}s de {int(duration)}s")
+    upload_file_to_folder(service, 'registro.json', FOLDER_ID)
+    send_telegram(f"✅ Script 9: Análisis completado. Shot {len(shots)//2} de {len(shots)} en {best_seconds}s")
     
 except Exception as e:
-    send_telegram(f"❌ Error: {str(e)}")
+    send_telegram(f"❌ Script 9: {str(e)}")
+    import traceback
+    send_telegram(f"📋 {traceback.format_exc()[:400]}")
     sys.exit(1)
