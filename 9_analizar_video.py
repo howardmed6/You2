@@ -37,8 +37,6 @@ def upload_file_to_folder(service, filename, folder_id):
     query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
     results = service.files().list(q=query, fields="files(id)").execute()
     files = results.get('files', [])
-    mimetype = 'application/json'
-    media = MediaFileUpload(filename, mimetype=mimetype)
     if files:
         service.files().update(fileId=files[0]['id'], media_body=media).execute()
     else:
@@ -46,7 +44,7 @@ def upload_file_to_folder(service, filename, folder_id):
         service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 try:
-    send_telegram("🎬 Script 9: Iniciando análisis inteligente de miniatura...")
+    send_telegram("🎬 Script 9: Buscando miniatura perfecta (Persona SÍ, Subtítulos NO)...")
     service = get_drive_service()
     
     # Buscar video
@@ -58,7 +56,6 @@ try:
     video_results = service.files().list(q=video_query, fields="files(id, name)").execute()
     video_file = video_results.get('files', [])[0]
     
-    send_telegram(f"📹 Analizando contenido de: {video_file['name']}")
     download_file_from_drive(service, video_file['id'], 'video.mp4')
     
     with open('video.mp4', 'rb') as f:
@@ -68,67 +65,76 @@ try:
     creds = Credentials.from_service_account_info(creds_json)
     video_client = vi.VideoIntelligenceServiceClient(credentials=creds)
     
-    # ACTIVAMOS LABEL_DETECTION para que la IA "vea" qué hay en el video
-    features = [vi.Feature.LABEL_DETECTION, vi.Feature.SHOT_CHANGE_DETECTION]
+    # Añadimos TEXT_DETECTION para poder filtrar subtítulos
+    features = [
+        vi.Feature.LABEL_DETECTION, 
+        vi.Feature.SHOT_CHANGE_DETECTION,
+        vi.Feature.TEXT_DETECTION
+    ]
+    
     operation = video_client.annotate_video(
         request={"features": features, "input_content": input_content}
     )
     
-    send_telegram("⏳ La IA está buscando la mejor escena con personas y sin texto...")
+    send_telegram("⏳ Analizando visualmente cada escena...")
     result = operation.result(timeout=900)
-    
-    # Análisis de etiquetas para encontrar personas
-    labels = result.annotation_results[0].shot_label_annotations
+    annotation_result = result.annotation_results[0]
+
+    # 1. Mapear dónde hay texto (subtítulos/letreros)
+    text_frames = []
+    if annotation_result.text_annotations:
+        for text in annotation_result.text_annotations:
+            for segment in text.segments:
+                start = segment.segment.start_time_offset.total_seconds()
+                end = segment.segment.end_time_offset.total_seconds()
+                text_frames.append((start, end))
+
+    # 2. Buscar personas
     best_moment = None
-    highest_confidence = 0.0
+    max_score = -1.0
 
-    # Palabras clave que queremos (Personas) y las que no (Texto/Créditos)
-    target_labels = ["person", "human", "face", "actor"]
-    avoid_labels = ["text", "subtitle", "font", "brand", "logo"]
-
+    labels = annotation_result.shot_label_annotations
     for label in labels:
-        description = label.entity.description.lower()
-        
-        # Si la etiqueta es sobre personas
-        if any(target in description for target in target_labels):
+        desc = label.entity.description.lower()
+        if any(keyword in desc for keyword in ["person", "human", "face", "actor"]):
             for segment in label.segments:
-                confidence = segment.confidence
-                # Priorizar segmentos con alta confianza
-                if confidence > highest_confidence:
-                    # Calculamos el punto medio de este segmento con personas
-                    start = segment.segment.start_time_offset.total_seconds()
-                    end = segment.segment.end_time_offset.total_seconds()
-                    
-                    highest_confidence = confidence
-                    best_moment = (start + end) / 2
+                start = segment.segment.start_time_offset.total_seconds()
+                end = segment.segment.end_time_offset.total_seconds()
+                mid = (start + end) / 2
+                
+                # Penalizar si este momento cae dentro de un rango con texto detectado
+                has_text = any(t_start <= mid <= t_end for t_start, t_end in text_frames)
+                
+                score = segment.confidence
+                if has_text:
+                    score -= 0.5  # Penalización fuerte por subtítulos
+                
+                if score > max_score:
+                    max_score = score
+                    best_moment = mid
 
-    # Si no encontró personas, usamos el método del shot central como respaldo
+    # Respaldo si todo tiene texto o no hay personas
     if not best_moment:
-        shots = result.annotation_results[0].shot_annotations
-        middle_shot = shots[len(shots) // 2]
-        best_moment = (middle_shot.start_time_offset.total_seconds() + middle_shot.end_time_offset.total_seconds()) / 2
-        send_telegram("⚠️ No se detectaron personas claras, usando escena central.")
+        shots = annotation_result.shot_annotations
+        best_moment = (shots[len(shots)//2].start_time_offset.total_seconds())
 
     best_seconds = int(best_moment)
     best_micros = int((best_moment - best_seconds) * 1_000_000)
-    
-    # Formato mm:ss para Telegram
     mins, secs = divmod(best_seconds, 60)
     tiempo_formateado = f"{mins:02d}:{secs:02d}"
 
     registro = {
         "video_archivo": video_file['name'],
-        "video_drive_id": video_file['id'],
-        "start_time_offset": {"seconds": best_seconds, "micros": best_micros},
-        "tiempo_legible": tiempo_formateado,
-        "metodo": "deteccion_de_personas" if highest_confidence > 0 else "shot_central"
+        "tiempo_miniatura": tiempo_formateado,
+        "segundos_totales": best_moment,
+        "presencia_texto_evitada": True
     }
     
     with open('registro.json', 'w') as f:
         json.dump(registro, f, indent=2)
     
     upload_file_to_folder(service, 'registro.json', FOLDER_ID)
-    send_telegram(f"✅ ¡Miniatura encontrada! Momento ideal: {tiempo_formateado} (Basado en presencia de personas)")
+    send_telegram(f"✅ Miniatura optimizada: {tiempo_formateado}\n(Se priorizó persona y se evitó subtítulos detectados)")
     
 except Exception as e:
     send_telegram(f"❌ Error: {str(e)}")
