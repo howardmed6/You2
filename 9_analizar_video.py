@@ -4,7 +4,7 @@ import sys
 import subprocess
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
@@ -20,6 +20,14 @@ def get_drive_service():
     creds_json = json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS'])
     creds = Credentials.from_service_account_info(creds_json, scopes=['https://www.googleapis.com/auth/drive'])
     return build('drive', 'v3', credentials=creds)
+
+def download_file_from_drive(service, file_id, destination):
+    request = service.files().get_media(fileId=file_id)
+    with open(destination, 'wb') as f:
+        downloader = MediaIoBaseDownload(f, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
 
 def upload_file(service, filename):
     results = service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false", fields="files(id)").execute()
@@ -38,41 +46,45 @@ try:
     send_telegram("🎬 Script 9: Iniciando análisis de video...")
     service = get_drive_service()
     
-    # Buscar video .mp4 en la carpeta 'SnapTube Video' (sin espacio adicional)
-    VIDEO_FOLDER = 'SnapTube Video'
+    # Buscar la carpeta 'SnapTube Video' en Drive
+    folder_query = f"'{FOLDER_ID}' in parents and name='SnapTube Video' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    folder_results = service.files().list(q=folder_query, fields="files(id, name)").execute()
+    folders = folder_results.get('files', [])
     
-    # Debug: listar archivos en el directorio actual
-    current_files = os.listdir('.')
-    send_telegram(f"📂 Archivos encontrados: {', '.join(current_files[:10])}")
-    
-    if not os.path.exists(VIDEO_FOLDER):
-        send_telegram(f"❌ Carpeta '{VIDEO_FOLDER}' no encontrada. Buscando alternativas...")
-        # Buscar cualquier carpeta que contenga "SnapTube"
-        for item in current_files:
-            if os.path.isdir(item) and 'SnapTube' in item:
-                VIDEO_FOLDER = item
-                send_telegram(f"✅ Carpeta encontrada: '{VIDEO_FOLDER}'")
-                break
-        else:
-            send_telegram(f"❌ No se encontró ninguna carpeta con 'SnapTube'")
-            sys.exit(1)
-    
-    # Buscar archivo .mp4 en la carpeta (siempre hay uno)
-    video_files = [f for f in os.listdir(VIDEO_FOLDER) if f.endswith('.mp4')]
-    
-    if not video_files:
-        send_telegram(f"❌ Video .mp4 no encontrado en '{VIDEO_FOLDER}'")
+    if not folders:
+        send_telegram("❌ Carpeta 'SnapTube Video' no encontrada en Drive")
         sys.exit(1)
     
-    video_filename = video_files[0]
-    video_path = os.path.join(VIDEO_FOLDER, video_filename)
+    snaptube_folder_id = folders[0]['id']
+    send_telegram(f"📂 Carpeta encontrada: {folders[0]['name']}")
     
-    send_telegram(f"📹 Video encontrado: {video_filename}")
+    # Buscar video .mp4 dentro de la carpeta SnapTube Video
+    video_query = f"'{snaptube_folder_id}' in parents and mimeType contains 'video/mp4' and trashed=false"
+    video_results = service.files().list(q=video_query, fields="files(id, name)").execute()
+    videos = video_results.get('files', [])
+    
+    if not videos:
+        send_telegram("❌ Video .mp4 no encontrado en 'SnapTube Video'")
+        sys.exit(1)
+    
+    video_file = videos[0]
+    video_filename = video_file['name']
+    
+    send_telegram(f"📹 Descargando video: {video_filename}")
+    
+    # Descargar el video desde Drive
+    download_file_from_drive(service, video_file['id'], video_filename)
+    
+    if not os.path.exists(video_filename):
+        send_telegram("❌ Error descargando video desde Drive")
+        sys.exit(1)
+    
+    send_telegram(f"✅ Video descargado: {video_filename}")
     
     # Calcular duración del video
     duration_cmd = [
         'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1', video_path
+        '-of', 'default=noprint_wrappers=1:nokey=1', video_filename
     ]
     result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=30)
     duration = float(result.stdout.strip()) if result.stdout.strip() else 0
@@ -83,11 +95,11 @@ try:
     else:
         best_time = 5  # Por defecto 5 segundos
     
-    send_telegram(f"⏱️ Extrayendo fotograma en {int(best_time)}s...")
+    send_telegram(f"⏱️ Extrayendo fotograma en {int(best_time)}s de {int(duration)}s totales...")
     
     # Extraer fotograma usando ffmpeg
     cmd = [
-        'ffmpeg', '-ss', str(best_time), '-i', video_path,
+        'ffmpeg', '-ss', str(best_time), '-i', video_filename,
         '-vframes', '1', '-q:v', '2', '-y', 'fotograma.jpg'
     ]
     subprocess.run(cmd, capture_output=True, timeout=60)
@@ -106,17 +118,18 @@ try:
     # Guardar en registro.json
     registro = {
         "video_archivo": video_filename,
-        "video_ruta": video_path,
+        "video_drive_id": video_file['id'],
         "fotograma_segundos": int(best_time),
         "fotograma_nanos": nanos,
-        "timestamp": int(best_time)
+        "timestamp": int(best_time),
+        "duracion_total": int(duration)
     }
     
     with open('registro.json', 'w') as f:
         json.dump(registro, f, indent=2)
     
     upload_file(service, 'registro.json')
-    send_telegram(f"✅ Script 9: Fotograma extraído en {int(best_time)}s y subido a Drive")
+    send_telegram(f"✅ Script 9 completado: Fotograma extraído en {int(best_time)}s y subido a Drive")
     
 except Exception as e:
     send_telegram(f"❌ Script 9 falló: {str(e)}")
