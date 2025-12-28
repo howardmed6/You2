@@ -8,17 +8,25 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 
-# Configuración
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
 IMAGENES = [f"imagen{i}.jpg" for i in range(1, 11)]
 
 def get_creds():
     creds_json = json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS'])
-    return Credentials.from_service_account_info(creds_json, scopes=['https://www.googleapis.com/auth/drive'])
+    # Agregamos los SCOPES necesarios para ambas APIs aquí mismo
+    scopes = [
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/cloud-platform'
+    ]
+    return Credentials.from_service_account_info(creds_json).with_scopes(scopes)
 
 def procesar_lote_secuencial():
     creds = get_creds()
+    # Construimos los servicios con las credenciales que ya tienen los scopes
     drive_service = build('drive', 'v3', credentials=creds)
+    # Importante: Pasar las credenciales directamente al cliente de Vision
+    vision_client = vision.ImageAnnotatorClient(credentials=creds)
+    
     reporte_final = []
 
     print(f"--- Iniciando proceso de {len(IMAGENES)} imágenes ---")
@@ -26,7 +34,6 @@ def procesar_lote_secuencial():
     for nombre in IMAGENES:
         try:
             print(f"📥 Descargando: {nombre}")
-            # 1. Buscar archivo
             q = f"'{FOLDER_ID}' in parents and name='{nombre}' and trashed=false"
             res = drive_service.files().list(q=q, fields="files(id)").execute()
             
@@ -35,8 +42,6 @@ def procesar_lote_secuencial():
                 continue
 
             file_id = res['files'][0]['id']
-            
-            # 2. Descargar a buffer
             request = drive_service.files().get_media(fileId=file_id)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -44,9 +49,7 @@ def procesar_lote_secuencial():
             while not done:
                 _, done = downloader.next_chunk()
             
-            # 3. Analizar (Creamos y destruimos el cliente en el loop para limpiar RAM)
             print(f"🔍 Analizando IA: {nombre}")
-            vision_client = vision.ImageAnnotatorClient(credentials=creds)
             content = fh.getvalue()
             image = vision.Image(content=content)
             
@@ -58,7 +61,6 @@ def procesar_lote_secuencial():
                 ]
             })
 
-            # Estructura del registro
             registro = {
                 "archivo": nombre,
                 "marcos": [],
@@ -69,33 +71,39 @@ def procesar_lote_secuencial():
                 if any(x in obj.name.lower() for x in ['frame', 'border', 'rectangle']):
                     registro["marcos"].append({
                         "nombre": obj.name,
-                        "coordenadas": [{"x": v.x, "y": v.y} for v in obj.bounding_poly.normalized_vertices]
+                        "coordenadas": [{"x": round(v.x, 3), "y": round(v.y, 3)} for v in obj.bounding_poly.normalized_vertices]
                     })
 
             if not registro["marcos"]:
                 registro["marcos"] = [{"nombre": "ninguno", "coordenadas": [{"x": 0, "y": 0}]}]
 
             reporte_final.append(registro)
-            
-            # Limpieza manual de memoria para evitar malloc corruption
-            del vision_client
             fh.close()
-            time.sleep(1) # Pequeño respiro para el recolector de basura
 
         except Exception as e:
             print(f"❌ Error en {nombre}: {str(e)}")
             reporte_final.append({"archivo": nombre, "error": str(e)})
 
-    # 4. Guardar y Subir Reporte
+    # SOLUCIÓN AL ERROR DE CUOTA (403):
+    # En lugar de crear un archivo nuevo que consume cuota de la cuenta de servicio,
+    # lo creamos dentro de la carpeta compartida para que use tu cuota.
     print("📤 Subiendo reporte final...")
     with open('reporte_marcos_logos.json', 'w') as f:
         json.dump(reporte_final, f, indent=2)
 
+    file_metadata = {
+        'name': 'reporte_marcos_logos.json',
+        'parents': [FOLDER_ID]
+    }
     media = MediaFileUpload('reporte_marcos_logos.json', mimetype='application/json')
-    drive_service.files().create(
-        body={'name': 'reporte_marcos_logos.json', 'parents': [FOLDER_ID]},
-        media_body=media
-    ).execute()
+    
+    # Intentamos primero ver si ya existe para actualizarlo, si no, lo creamos
+    existing = drive_service.files().list(q=f"name='reporte_marcos_logos.json' and '{FOLDER_ID}' in parents").execute()
+    if existing.get('files'):
+        drive_service.files().update(fileId=existing['files'][0]['id'], media_body=media).execute()
+    else:
+        # La clave es que al estar en una carpeta compartida, hereda el permiso
+        drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     
     print("✅ TODO LISTO.")
 
