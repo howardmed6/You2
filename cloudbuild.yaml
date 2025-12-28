@@ -51,6 +51,7 @@ steps:
             14) python 14_recortar_logo.py || exit 1 ;;
             15) python 15_miniatura_final.py || exit 1 ;;
             16) python 16_cambio_nombres_imagenes_y_video.py || exit 1 ;;
+            17) python 17_renombrar_imagenes.py || exit 1 ;;
           esac
         done
         echo "Scripts completados"
@@ -69,12 +70,59 @@ steps:
       - |
         pip install -r requirements.txt --break-system-packages
         python upload_data.py
-        # Subir archivos generados
-        for file in descargar.json registro.json marcos.json logo.json miniatura_final.jpg imagen*.jpg; do
+        
+        # Subir solo archivos JSON que deben existir
+        for file in descargar.json registro.json marcos.json logo.json; do
           if [ -f "$file" ]; then
             python upload_file.py "$file" || true
           fi
         done
+        
+        # Para imágenes: crear script temporal que solo actualice (no cree)
+        cat > update_images.py << 'EOFPYTHON'
+import os
+import json
+import sys
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
+
+credentials_json = os.environ.get('GOOGLE_DRIVE_CREDENTIALS')
+credentials_info = json.loads(credentials_json)
+credentials = Credentials.from_service_account_info(
+    credentials_info, 
+    scopes=['https://www.googleapis.com/auth/drive']
+)
+service = build('drive', 'v3', credentials=credentials)
+
+# Buscar todas las imágenes
+for i in range(1, 11):
+    filename = f'imagen{i}.jpg'
+    if os.path.exists(filename):
+        try:
+            # Buscar si existe en Drive
+            results = service.files().list(
+                q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false",
+                fields="files(id)"
+            ).execute()
+            
+            files = results.get('files', [])
+            
+            if files:
+                # Solo actualizar si ya existe
+                media = MediaFileUpload(filename, mimetype='image/jpeg')
+                service.files().update(fileId=files[0]['id'], media_body=media).execute()
+                print(f"✅ {filename} actualizado en Drive")
+            else:
+                print(f"⚠️ {filename} no existe en Drive, se omite (crear manualmente primero)")
+        except Exception as e:
+            print(f"❌ Error con {filename}: {e}")
+EOFPYTHON
+        
+        python update_images.py
+        
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["run-scripts"]
 
@@ -102,8 +150,8 @@ substitutions:
 # "1,2,3,5,6" - Básico + limpieza + elegir video manual
 # "1,8" - URLs + seleccionar no shorts
 # "1,8,7" - URLs + no shorts + IA
-# "9,10,11,12,13,14,15,16" - Pipeline completo de miniatura
-# "1,2,3,5,7,9,10,11,12,13,14,15,16" - COMPLETO: análisis + miniatura
+# "9,10,11,12,13,14,15,16,17" - Pipeline completo de miniatura
+# "1,2,3,5,7,9,10,11,12,13,14,15,16,17" - COMPLETO: análisis + miniatura
 
 options:
   logging: CLOUD_LOGGING_ONLY
