@@ -1,5 +1,5 @@
 steps:
-  # Paso 1: Descargar data.json
+  # Paso 0: Descargar data inicial
   - name: "python:3.11"
     id: "download-data"
     entrypoint: "bash"
@@ -9,8 +9,8 @@ steps:
         pip install -r requirements.txt --break-system-packages --no-cache-dir
         python download_data.py
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
-  
-  # Scripts separados - cada uno en su propio contenedor
+
+  # Script 1
   - name: "python:3.11"
     id: "script-1"
     entrypoint: "bash"
@@ -18,17 +18,16 @@ steps:
       - "-c"
       - |
         if [[ ",${_SCRIPTS}," == *",1,"* ]]; then
-          pip install -r requirements.txt --break-system-packages --no-cache-dir
+          pip install -r requirements.txt --break-system-packages
           python 1_obtenerurls.py || exit 1
-        else
-          echo "Script 1 omitido"
         fi
-    env:
+    env: &env_vars
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
       - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["download-data"]
 
+  # Script 2 (Usa OpenAI)
   - name: "python:3.11"
     id: "script-2"
     entrypoint: "bash"
@@ -38,15 +37,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",2,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 2_extraerinfovideospotenciales.py || exit 1
-        else
-          echo "Script 2 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
-    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    env: *env_vars
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["script-1"]
 
+  # Script 3
   - name: "python:3.11"
     id: "script-3"
     entrypoint: "bash"
@@ -56,15 +52,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",3,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 3_notificar_descartados.py || exit 1
-        else
-          echo "Script 3 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-2"]
 
+  # Script 4
   - name: "python:3.11"
     id: "script-4"
     entrypoint: "bash"
@@ -75,18 +68,13 @@ steps:
           pip install -r requirements.txt --break-system-packages
           if [ -n "${_TELEGRAM_IDS}" ]; then
             python 4_cambiar_status.py "${_TELEGRAM_IDS}" || exit 1
-          else
-            echo "Script 4 omitido: no hay IDs"
           fi
-        else
-          echo "Script 4 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-3"]
 
+  # Script 5
   - name: "python:3.11"
     id: "script-5"
     entrypoint: "bash"
@@ -96,15 +84,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",5,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 5_limpiar_no_seleccionados.py || exit 1
-        else
-          echo "Script 5 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-4"]
 
+  # Script 6
   - name: "python:3.11"
     id: "script-6"
     entrypoint: "bash"
@@ -115,18 +100,13 @@ steps:
           pip install -r requirements.txt --break-system-packages
           if [ -n "${_VIDEO_ELEGIDO}" ]; then
             python 6_elegir_video.py "${_VIDEO_ELEGIDO}" || exit 1
-          else
-            echo "Script 6 omitido: no hay ID/URL del video elegido"
           fi
-        else
-          echo "Script 6 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-5"]
 
+  # Script 7 (Usa OpenAI)
   - name: "python:3.11"
     id: "script-7"
     entrypoint: "bash"
@@ -136,15 +116,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",7,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 7_elegir_con_ia.py || exit 1
-        else
-          echo "Script 7 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["script-6"]
 
+  # Script 8
   - name: "python:3.11"
     id: "script-8"
     entrypoint: "bash"
@@ -154,15 +131,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",8,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 8_seleccionar_no_shorts.py || exit 1
-        else
-          echo "Script 8 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-7"]
 
+  # Script 9
   - name: "python:3.11"
     id: "script-9"
     entrypoint: "bash"
@@ -172,15 +146,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",9,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 9_analizar_video.py || exit 1
-        else
-          echo "Script 9 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-8"]
 
+  # Script 10
   - name: "python:3.11"
     id: "script-10"
     entrypoint: "bash"
@@ -190,15 +161,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",10,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 10_sacar_imagenes.py || exit 1
-        else
-          echo "Script 10 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-9"]
 
+  # Script 11
   - name: "python:3.11"
     id: "script-11"
     entrypoint: "bash"
@@ -208,15 +176,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",11,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 11_detectar_marcos.py || exit 1
-        else
-          echo "Script 11 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-10"]
 
+  # Script 12
   - name: "python:3.11"
     id: "script-12"
     entrypoint: "bash"
@@ -226,15 +191,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",12,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 12_recortar_marcos.py || exit 1
-        else
-          echo "Script 12 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-11"]
 
+  # Script 13
   - name: "python:3.11"
     id: "script-13"
     entrypoint: "bash"
@@ -244,15 +206,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",13,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 13_detectar_logo.py || exit 1
-        else
-          echo "Script 13 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-12"]
 
+  # Script 14
   - name: "python:3.11"
     id: "script-14"
     entrypoint: "bash"
@@ -262,15 +221,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",14,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 14_recortar_logo.py || exit 1
-        else
-          echo "Script 14 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-13"]
 
+  # Script 15
   - name: "python:3.11"
     id: "script-15"
     entrypoint: "bash"
@@ -280,15 +236,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",15,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 15_miniatura_final.py || exit 1
-        else
-          echo "Script 15 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-14"]
 
+  # Script 16
   - name: "python:3.11"
     id: "script-16"
     entrypoint: "bash"
@@ -298,15 +251,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",16,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 16_cambio_nombres_imagenes_y_video.py || exit 1
-        else
-          echo "Script 16 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-15"]
 
+  # Script 17
   - name: "python:3.11"
     id: "script-17"
     entrypoint: "bash"
@@ -316,16 +266,12 @@ steps:
         if [[ ",${_SCRIPTS}," == *",17,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 17_renombrar_imagenes.py || exit 1
-        else
-          echo "Script 17 omitido"
         fi
-    env:
-      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
-      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-16"]
 
-  # Paso final: Subir archivos actualizados
+  # Paso final: Sincronización final si fuera necesaria
   - name: "python:3.11"
     id: "upload-data"
     entrypoint: "bash"
@@ -337,7 +283,6 @@ steps:
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-17"]
 
-# Configuración de Secret Manager
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/GOOGLE_DRIVE_CREDENTIALS/versions/latest
@@ -345,7 +290,6 @@ availableSecrets:
     - versionName: projects/$PROJECT_ID/secrets/OPENAI_API_KEY/versions/latest
       env: "OPENAI_API_KEY"
 
-# Variables de sustitución
 substitutions:
   _SCRIPTS: "1,2,3"
   _TELEGRAM_IDS: ""
