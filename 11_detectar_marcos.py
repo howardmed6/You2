@@ -10,7 +10,7 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
-ARCHIVO_JSON = "reporte_marcos.json"
+ARCHIVO_JSON = "reporte_marcos_logos.json"
 IMAGENES = [f"imagen{i}.jpg" for i in range(1, 11)]
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')

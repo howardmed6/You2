@@ -9,8 +9,7 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
-ARCHIVO_JSON = "reporte_logos.json"
-IMAGENES = [f"imagen{i}.jpg" for i in range(1, 11)]
+ARCHIVO_JSON = "reporte_marcos_logos.json"
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
@@ -30,10 +29,25 @@ try:
     drive_service = build('drive', 'v3', credentials=creds)
     vision_client = vision.ImageAnnotatorClient(credentials=creds)
     
+    # Descargar JSON existente con info de marcos
+    q = f"'{FOLDER_ID}' in parents and name='{ARCHIVO_JSON}' and trashed=false"
+    res_json = drive_service.files().list(q=q, fields="files(id)").execute()
+    
     reporte_final = []
+    if res_json.get('files'):
+        file_id_json = res_json['files'][0]['id']
+        request = drive_service.files().get_media(fileId=file_id_json)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done: _, done = downloader.next_chunk()
+        reporte_final = json.loads(fh.getvalue().decode('utf-8'))
+        fh.close()
+    
     detectados = 0
 
-    for nombre in IMAGENES:
+    for item in reporte_final:
+        nombre = item['archivo']
         q = f"'{FOLDER_ID}' in parents and name='{nombre}' and trashed=false"
         res = drive_service.files().list(q=q, fields="files(id)").execute()
         
@@ -64,24 +78,14 @@ try:
             })
             detectados += 1
 
-        reporte_final.append({
-            "archivo": nombre,
-            "logos_detectados": logos
-        })
-        
+        item['logos_detectados'] = logos
         fh.close()
         del image
 
     with open(ARCHIVO_JSON, 'w') as f:
         json.dump(reporte_final, f, indent=2)
 
-    res_json = drive_service.files().list(
-        q=f"'{FOLDER_ID}' in parents and name='{ARCHIVO_JSON}' and trashed=false",
-        fields="files(id)"
-    ).execute()
-
     if res_json.get('files'):
-        file_id_json = res_json['files'][0]['id']
         media = MediaFileUpload(ARCHIVO_JSON, mimetype='application/json')
         drive_service.files().update(fileId=file_id_json, media_body=media).execute()
         send_telegram(f"✅ Script 13: {detectados} logos detectados en 10 imágenes")

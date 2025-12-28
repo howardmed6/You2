@@ -44,8 +44,8 @@ try:
     send_telegram("🎯 Script 14: Recortando logos inteligentemente...")
     service = get_drive_service()
     
-    download_file(service, 'reporte_logos.json')
-    with open('reporte_logos.json', 'r') as f:
+    download_file(service, 'reporte_marcos_logos.json')
+    with open('reporte_marcos_logos.json', 'r') as f:
         reporte = json.load(f)
     
     recortadas = 0
