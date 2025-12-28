@@ -44,11 +44,13 @@ steps:
             7) python 7_elegir_con_ia.py || exit 1 ;;
             8) python 8_seleccionar_no_shorts.py || exit 1 ;;
             9) python 9_analizar_video.py || exit 1 ;;
-            10) python 10_detectar_marcos.py || exit 1 ;;
-            11) python 11_recortar_marcos.py || exit 1 ;;
-            12) python 12_detectar_logo.py || exit 1 ;;
-            13) python 13_recortar_logo.py || exit 1 ;;
-            14) python 14_miniatura_final.py || exit 1 ;;
+            10) python 10_sacar_imagenes.py || exit 1 ;;
+            11) python 11_detectar_marcos.py || exit 1 ;;
+            12) python 12_recortar_marcos.py || exit 1 ;;
+            13) python 13_detectar_logo.py || exit 1 ;;
+            14) python 14_recortar_logo.py || exit 1 ;;
+            15) python 15_miniatura_final.py || exit 1 ;;
+            16) python 16_cambio_nombres_imagenes_y_video.py || exit 1 ;;
           esac
         done
         echo "Scripts completados"
@@ -100,8 +102,8 @@ substitutions:
 # "1,2,3,5,6" - Básico + limpieza + elegir video manual
 # "1,8" - URLs + seleccionar no shorts
 # "1,8,7" - URLs + no shorts + IA
-# "9,10,11,12,13,14" - Pipeline completo de miniatura
-# "1,2,3,5,7,9,10,11,12,13,14" - COMPLETO: análisis + miniatura
+# "9,10,11,12,13,14,15,16" - Pipeline completo de miniatura
+# "1,2,3,5,7,9,10,11,12,13,14,15,16" - COMPLETO: análisis + miniatura
 
 options:
   logging: CLOUD_LOGGING_ONLY
