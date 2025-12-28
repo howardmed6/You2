@@ -1,11 +1,11 @@
 import os
 import json
 import sys
+import io
 from PIL import Image
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from googleapiclient.http import MediaIoBaseDownload
-import io
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
@@ -18,88 +18,107 @@ def send_telegram(msg):
                      json={"chat_id": TELEGRAM_CHAT_ID, "text": msg})
 
 def get_drive_service():
-    creds_json = json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS'])
-    creds = Credentials.from_service_account_info(creds_json, scopes=['https://www.googleapis.com/auth/drive'])
+    creds = Credentials.from_service_account_info(
+        json.loads(os.environ['GOOGLE_DRIVE_CREDENTIALS']),
+        scopes=['https://www.googleapis.com/auth/drive']
+    )
     return build('drive', 'v3', credentials=creds)
 
 def download_file(service, filename):
-    results = service.files().list(q=f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false", fields="files(id)").execute()
+    q = f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false"
+    results = service.files().list(q=q, fields="files(id)").execute()
     if not results.get('files'): return None
+    
     file_id = results['files'][0]['id']
     request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done: _, done = downloader.next_chunk()
+    
     with open(filename, 'wb') as f:
-        downloader = MediaIoBaseDownload(f, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
+        f.write(fh.getvalue())
     return file_id
 
 try:
-    send_telegram("🎯 Script 13: Recortando logo inteligentemente...")
+    send_telegram("🎯 Script 14: Recortando logos inteligentemente...")
     service = get_drive_service()
     
-    download_file(service, 'logo.json')
-    download_file(service, 'fotograma_sin_marcos.jpg')
+    download_file(service, 'reporte_logos.json')
+    with open('reporte_logos.json', 'r') as f:
+        reporte = json.load(f)
     
-    with open('logo.json', 'r') as f:
-        logo_data = json.load(f)
+    recortadas = 0
+    sin_logos = 0
     
-    img = Image.open('fotograma_sin_marcos.jpg')
-    width, height = img.size
+    for item in reporte:
+        nombre = item['archivo']
+        logos = item.get('logos_detectados', [])
+        
+        file_id = download_file(service, nombre)
+        if not file_id: continue
+        
+        if not logos:
+            sin_logos += 1
+            continue
+        
+        img = Image.open(nombre)
+        w, h = img.size
+        
+        # Procesar cada logo (normalmente hay 1, pero puede haber más)
+        for logo in logos:
+            vertices = logo['vertices_px']
+            x_vals = [v['x'] for v in vertices]
+            y_vals = [v['y'] for v in vertices]
+            
+            logo_left = min(x_vals)
+            logo_right = max(x_vals)
+            logo_top = min(y_vals)
+            logo_bottom = max(y_vals)
+            logo_width = logo_right - logo_left
+            logo_height = logo_bottom - logo_top
+            
+            # Determinar esquina
+            esquina = ""
+            if logo_top < h * 0.25:
+                esquina += "Sup."
+            elif logo_bottom > h * 0.75:
+                esquina += "Inf."
+            
+            if logo_left < w * 0.25:
+                esquina += "Izq"
+            elif logo_right > w * 0.75:
+                esquina += "Der"
+            
+            # Calcular pérdida de píxeles
+            perdida_y = logo_height * w
+            perdida_x = logo_width * h
+            
+            # Decidir el corte óptimo
+            if perdida_y < perdida_x:
+                if "Sup" in esquina:
+                    img = img.crop((0, int(logo_bottom) + 5, w, h))
+                    decision = "↓arriba"
+                else:
+                    img = img.crop((0, 0, w, int(logo_top) - 5))
+                    decision = "↑abajo"
+            else:
+                if "Izq" in esquina:
+                    img = img.crop((int(logo_right) + 5, 0, w, h))
+                    decision = "→izq"
+                else:
+                    img = img.crop((0, 0, int(logo_left) - 5, h))
+                    decision = "←der"
+            
+            w, h = img.size  # Actualizar dimensiones para próximo logo
+        
+        img.save(nombre, quality=95)
+        media = MediaFileUpload(nombre, mimetype='image/jpeg')
+        service.files().update(fileId=file_id, media_body=media).execute()
+        recortadas += 1
     
-    if not logo_data or logo_data.get('logo') is None:
-        img.save('fotograma_sin_logo.jpg', quality=95)
-        send_telegram("⚠️ Script 13: Sin logo, continuando...")
-        sys.exit(0)
-    
-    coords = logo_data.get('coordenadas', [])
-    x_vals = [c[0] for c in coords]
-    y_vals = [c[1] for c in coords]
-    
-    logo_left = min(x_vals)
-    logo_right = max(x_vals)
-    logo_top = min(y_vals)
-    logo_bottom = max(y_vals)
-    logo_width = logo_right - logo_left
-    logo_height = logo_bottom - logo_top
-    
-    # Determinar esquina
-    esquina = ""
-    if logo_top < height * 0.25:
-        esquina += "Superior "
-    elif logo_bottom > height * 0.75:
-        esquina += "Inferior "
-    
-    if logo_left < width * 0.25:
-        esquina += "Izquierda"
-    elif logo_right > width * 0.75:
-        esquina += "Derecha"
-    
-    # Calcular pérdida de píxeles para cada opción
-    perdida_y = logo_height * width  # Cortar en eje Y (arriba/abajo)
-    perdida_x = logo_width * height   # Cortar en eje X (izquierda/derecha)
-    
-    # Elegir el corte que salva más área
-    if perdida_y < perdida_x:
-        # Cortar verticalmente (quitar franja superior o inferior)
-        if "Superior" in esquina:
-            img_cropped = img.crop((0, int(logo_bottom) + 5, width, height))
-            decision = "superior"
-        else:
-            img_cropped = img.crop((0, 0, width, int(logo_top) - 5))
-            decision = "inferior"
-    else:
-        # Cortar horizontalmente (quitar franja lateral)
-        if "Izquierda" in esquina:
-            img_cropped = img.crop((int(logo_right) + 5, 0, width, height))
-            decision = "izquierda"
-        else:
-            img_cropped = img.crop((0, 0, int(logo_left) - 5, height))
-            decision = "derecha"
-    
-    img_cropped.save('fotograma_sin_logo.jpg', quality=95)
-    send_telegram(f"✅ Script 13: Logo cortado ({esquina}) - Decisión: {decision}")
-    
+    send_telegram(f"✅ Script 14: {recortadas} logos recortados, {sin_logos} sin logos")
+
 except Exception as e:
-    send_telegram(f"❌ Script 13 falló: {str(e)}")
+    send_telegram(f"❌ Script 14: {str(e)}")
     sys.exit(1)
