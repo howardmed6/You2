@@ -123,41 +123,10 @@ def mostrar_ayuda():
     print(ayuda)
 
 if __name__ == "__main__":
-    # Detectar si estamos en Cloud Build (no hay terminal interactiva)
-    import sys
-    es_interactivo = sys.stdin.isatty()
+    ids_str = sys.argv[1] if len(sys.argv) > 1 else input("IDs separados por coma: ").strip()
     
-    if len(sys.argv) > 1:
-        if sys.argv[1] in ['-h', '--help', 'help']:
-            mostrar_ayuda()
-        else:
-            cambiar_a_seleccionado(sys.argv[1])
+    if ids_str:
+        cambiar_a_seleccionado(ids_str)
     else:
-        # Sin argumentos
-        if not es_interactivo:
-            # En Cloud Build - solo mostrar error y salir
-            print("\n❌ Script 4 requiere IDs de video")
-            print("💡 USO: python script.py ID1,ID2,ID3")
-            print("📖 En Cloud Build se usa con _TELEGRAM_IDS\n")
-            sys.exit(1)
-        else:
-            # En terminal interactiva - pedir input
-            print("\n" + "="*60)
-            print("📝 CAMBIAR VIDEOS A 'SELECCIONADO'")
-            print("="*60)
-            print("\n⚠️ Este script requiere IDs de video")
-            print("\n📖 USO EN CLOUD BUILD:")
-            print("   Se ejecuta automáticamente con la variable _TELEGRAM_IDS")
-            print("\n📖 USO MANUAL:")
-            print("   python script.py ID1,ID2,ID3")
-            print("   python script.py --help  (ver ayuda completa)")
-            print("\n📌 EJEMPLO:")
-            print("   python script.py abc123,def456,ghi789")
-            print("\n💡 TIP: Los IDs deben estar separados por comas\n")
-            print("="*60 + "\n")
-            
-            ids = input("IDs separados por coma (Enter para cancelar): ")
-            if ids.strip():
-                cambiar_a_seleccionado(ids)
-            else:
-                print("❌ Operación cancelada")
+        print("❌ No se ingresaron IDs")
+        sys.exit(1)
