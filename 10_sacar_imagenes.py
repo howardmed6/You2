@@ -3,7 +3,7 @@ import json
 import sys
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
+from googleapiclient.http import MediaIoBaseDownload
 import cv2
 import requests
 
@@ -30,18 +30,6 @@ def download_file_from_drive(service, file_id, destination):
         done = False
         while not done:
             _, done = downloader.next_chunk()
-
-def upload_file_to_folder(service, filename, folder_id):
-    """Sube o actualiza un archivo en Google Drive"""
-    query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
-    results = service.files().list(q=query, fields="files(id)").execute()
-    files = results.get('files', [])
-    media = MediaFileUpload(filename, mimetype='image/jpeg')
-    if files:
-        service.files().update(fileId=files[0]['id'], media_body=media).execute()
-    else:
-        file_metadata = {'name': filename, 'parents': [folder_id]}
-        service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 try:
     send_telegram("🚀 Script 10: Extrayendo fotogramas del video...")
@@ -87,16 +75,13 @@ try:
         if ret:
             imagen_nombre = f'imagen{i}.jpg'
             cv2.imwrite(imagen_nombre, frame)
-            
-            # Subir imagen a Google Drive
-            upload_file_to_folder(service, imagen_nombre, FOLDER_ID)
-            send_telegram(f"✅ Extraída y subida: {imagen_nombre} (tiempo: {fotograma.get('tiempo_legible', tiempo_exacto)}s)")
+            send_telegram(f"✅ Extraída: {imagen_nombre} (tiempo: {fotograma.get('tiempo_legible', tiempo_exacto)}s)")
         else:
             send_telegram(f"⚠️ No se pudo extraer imagen{i} en tiempo {tiempo_exacto}s")
     
     cap.release()
     
-    send_telegram(f"🎉 Proceso completado: {total} imágenes extraídas y subidas a Drive")
+    send_telegram(f"🎉 Proceso completado: {total} imágenes extraídas (se subirán al finalizar todos los scripts)")
 
 except Exception as e:
     send_telegram(f"❌ Error en Script 10: {str(e)}")

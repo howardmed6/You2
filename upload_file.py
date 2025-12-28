@@ -30,6 +30,10 @@ def upload_file(filename):
         
         files = results.get('files', [])
         
+        if not files:
+            print(f"⚠️ {filename} no existe en Drive - se omite (crear manualmente primero)")
+            return
+        
         # Determinar mimetype
         if filename.endswith('.json'):
             mimetype = 'application/json'
@@ -42,18 +46,10 @@ def upload_file(filename):
         
         media = MediaFileUpload(filename, mimetype=mimetype)
         
-        if files:
-            # Actualizar
-            file_id = files[0]['id']
-            service.files().update(fileId=file_id, media_body=media).execute()
-            print(f"✅ {filename} actualizado")
-        else:
-            # Crear
-            service.files().create(
-                body={'name': filename, 'parents': [FOLDER_ID]},
-                media_body=media
-            ).execute()
-            print(f"✅ {filename} creado")
+        # SOLO actualizar (nunca crear)
+        file_id = files[0]['id']
+        service.files().update(fileId=file_id, media_body=media).execute()
+        print(f"✅ {filename} actualizado")
             
     except Exception as e:
         print(f"❌ Error subiendo {filename}: {e}")
