@@ -69,7 +69,7 @@ steps:
       - |
         pip install -r requirements.txt --break-system-packages --no-cache-dir
         python upload_data.py
-        for file in descargar.json registro.json marcos.json logo.json miniatura_final.jpg imagen1.jpg imagen2.jpg imagen3.jpg imagen4.jpg imagen5.jpg imagen6.jpg imagen7.jpg imagen8.jpg imagen9.jpg imagen10.jpg; do
+        for file in descargar.json subidos.json registro.json marcos.json logo.json miniatura_final.jpg imagen1.jpg imagen2.jpg imagen3.jpg imagen4.jpg imagen5.jpg imagen6.jpg imagen7.jpg imagen8.jpg imagen9.jpg imagen10.jpg; do
           if [ -f "$file" ]; then python upload_file.py "$file" || true; fi
         done
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
