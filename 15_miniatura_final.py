@@ -80,7 +80,7 @@ def procesar_miniatura(input_filename, recorte_coords):
     for i, line in enumerate(text_lines):
         bbox = draw.textbbox((0, 0), line, font=font)
         text_width = bbox[2] - bbox[0]
-        x_position = TARGET_WIDTH - text_width - padding
+        x_position = padding  # Izquierda en vez de derecha
         
         draw.text((x_position + 3, y_position + 3), line, font=font, fill=(0, 0, 0, 200))
         draw.text((x_position, y_position), line, font=font, fill=(255, 255, 255))
