@@ -10,58 +10,322 @@ steps:
         python download_data.py
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
   
-  # Paso 2: Ejecutar scripts según la variable _SCRIPTS
+  # Scripts separados - cada uno en su propio contenedor
   - name: "python:3.11"
-    id: "run-scripts"
+    id: "script-1"
     entrypoint: "bash"
     args:
       - "-c"
       - |
-        pip install -r requirements.txt --break-system-packages
-        echo "Scripts a ejecutar: ${_SCRIPTS}"
-        IFS=',' read -ra SCRIPT_ARRAY <<< "${_SCRIPTS}"
-        for script_num in "${SCRIPT_ARRAY[@]}"; do
-          echo "Ejecutando script $script_num"
-          case $script_num in
-            1) python 1_obtenerurls.py || exit 1 ;;
-            2) python 2_extraerinfovideospotenciales.py || exit 1 ;;
-            3) python 3_notificar_descartados.py || exit 1 ;;
-            4) 
-              if [ -n "${_TELEGRAM_IDS}" ]; then
-                python 4_cambiar_status.py "${_TELEGRAM_IDS}" || exit 1
-              else
-                echo "Script 4 omitido: no hay IDs"
-              fi
-              ;;
-            5) python 5_limpiar_no_seleccionados.py || exit 1 ;;
-            6)
-              if [ -n "${_VIDEO_ELEGIDO}" ]; then
-                python 6_elegir_video.py "${_VIDEO_ELEGIDO}" || exit 1
-              else
-                echo "Script 6 omitido: no hay ID/URL del video elegido"
-              fi
-              ;;
-            7) python 7_elegir_con_ia.py || exit 1 ;;
-            8) python 8_seleccionar_no_shorts.py || exit 1 ;;
-            9) python 9_analizar_video.py || exit 1 ;;
-            10) python 10_sacar_imagenes.py || exit 1 ;;
-            11) python 11_detectar_marcos.py || exit 1 ;;
-            12) python 12_recortar_marcos.py || exit 1 ;;
-            13) python 13_detectar_logo.py || exit 1 ;;
-            14) python 14_recortar_logo.py || exit 1 ;;
-            15) python 15_miniatura_final.py || exit 1 ;;
-            16) python 16_cambio_nombres_imagenes_y_video.py || exit 1 ;;
-            17) python 17_renombrar_imagenes.py || exit 1 ;;
-          esac
-        done
-        echo "Scripts completados"
+        if [[ ",${_SCRIPTS}," == *",1,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 1_obtenerurls.py || exit 1
+        else
+          echo "Script 1 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["download-data"]
+
+  - name: "python:3.11"
+    id: "script-2"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",2,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 2_extraerinfovideospotenciales.py || exit 1
+        else
+          echo "Script 2 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-1"]
+
+  - name: "python:3.11"
+    id: "script-3"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",3,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 3_notificar_descartados.py || exit 1
+        else
+          echo "Script 3 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-2"]
+
+  - name: "python:3.11"
+    id: "script-4"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",4,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          if [ -n "${_TELEGRAM_IDS}" ]; then
+            python 4_cambiar_status.py "${_TELEGRAM_IDS}" || exit 1
+          else
+            echo "Script 4 omitido: no hay IDs"
+          fi
+        else
+          echo "Script 4 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-3"]
+
+  - name: "python:3.11"
+    id: "script-5"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",5,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 5_limpiar_no_seleccionados.py || exit 1
+        else
+          echo "Script 5 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-4"]
+
+  - name: "python:3.11"
+    id: "script-6"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",6,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          if [ -n "${_VIDEO_ELEGIDO}" ]; then
+            python 6_elegir_video.py "${_VIDEO_ELEGIDO}" || exit 1
+          else
+            echo "Script 6 omitido: no hay ID/URL del video elegido"
+          fi
+        else
+          echo "Script 6 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-5"]
+
+  - name: "python:3.11"
+    id: "script-7"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",7,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 7_elegir_con_ia.py || exit 1
+        else
+          echo "Script 7 omitido"
+        fi
     env:
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
       - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
-    waitFor: ["download-data"]
-  
-  # Paso 3: Subir archivos actualizados
+    waitFor: ["script-6"]
+
+  - name: "python:3.11"
+    id: "script-8"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",8,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 8_seleccionar_no_shorts.py || exit 1
+        else
+          echo "Script 8 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-7"]
+
+  - name: "python:3.11"
+    id: "script-9"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",9,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 9_analizar_video.py || exit 1
+        else
+          echo "Script 9 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-8"]
+
+  - name: "python:3.11"
+    id: "script-10"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",10,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 10_sacar_imagenes.py || exit 1
+        else
+          echo "Script 10 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-9"]
+
+  - name: "python:3.11"
+    id: "script-11"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",11,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 11_detectar_marcos.py || exit 1
+        else
+          echo "Script 11 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-10"]
+
+  - name: "python:3.11"
+    id: "script-12"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",12,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 12_recortar_marcos.py || exit 1
+        else
+          echo "Script 12 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-11"]
+
+  - name: "python:3.11"
+    id: "script-13"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",13,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 13_detectar_logo.py || exit 1
+        else
+          echo "Script 13 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-12"]
+
+  - name: "python:3.11"
+    id: "script-14"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",14,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 14_recortar_logo.py || exit 1
+        else
+          echo "Script 14 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-13"]
+
+  - name: "python:3.11"
+    id: "script-15"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",15,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 15_miniatura_final.py || exit 1
+        else
+          echo "Script 15 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-14"]
+
+  - name: "python:3.11"
+    id: "script-16"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",16,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 16_cambio_nombres_imagenes_y_video.py || exit 1
+        else
+          echo "Script 16 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-15"]
+
+  - name: "python:3.11"
+    id: "script-17"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [[ ",${_SCRIPTS}," == *",17,"* ]]; then
+          pip install -r requirements.txt --break-system-packages
+          python 17_renombrar_imagenes.py || exit 1
+        else
+          echo "Script 17 omitido"
+        fi
+    env:
+      - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
+      - "TELEGRAM_CHAT_ID=${_TELEGRAM_CHAT_ID}"
+    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
+    waitFor: ["script-16"]
+
+  # Paso final: Subir archivos actualizados
   - name: "python:3.11"
     id: "upload-data"
     entrypoint: "bash"
@@ -70,14 +334,8 @@ steps:
       - |
         pip install -r requirements.txt --break-system-packages
         python upload_data.py
-        # Subir archivos generados (JSON e imágenes)
-        for file in descargar.json registro.json marcos.json logo.json miniatura_final.jpg imagen1.jpg imagen2.jpg imagen3.jpg imagen4.jpg imagen5.jpg imagen6.jpg imagen7.jpg imagen8.jpg imagen9.jpg imagen10.jpg; do
-          if [ -f "$file" ]; then
-            python upload_file.py "$file" || true
-          fi
-        done
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
-    waitFor: ["run-scripts"]
+    waitFor: ["script-17"]
 
 # Configuración de Secret Manager
 availableSecrets:
@@ -89,25 +347,14 @@ availableSecrets:
 
 # Variables de sustitución
 substitutions:
-  _SCRIPTS: "1,2,3"  # Combos disponibles (ver abajo)
+  _SCRIPTS: "1,2,3"
   _TELEGRAM_IDS: ""
   _VIDEO_ELEGIDO: ""
   _TELEGRAM_BOT_TOKEN: "8599691958:AAHrOjGVJrvOgbU30rLY23HPmrrNNKYHDUs"
   _TELEGRAM_CHAT_ID: "6166225652"
 
-# COMBOS DISPONIBLES:
-# "1,2,3" - Básico: obtener URLs, extraer info, notificar
-# "1,2,3,7" - Básico + IA: incluye selección automática con IA
-# "1,2,3,5" - Básico + limpieza: incluye limpiar no seleccionados
-# "1,2,3,5,7" - Básico + limpieza + IA
-# "1,2,3,5,6" - Básico + limpieza + elegir video manual
-# "1,8" - URLs + seleccionar no shorts
-# "1,8,7" - URLs + no shorts + IA
-# "9,10,11,12,13,14,15,16,17" - Pipeline completo de miniatura
-# "1,2,3,5,7,9,10,11,12,13,14,15,16,17" - COMPLETO: análisis + miniatura
-
 options:
   logging: CLOUD_LOGGING_ONLY
   substitutionOption: "ALLOW_LOOSE"
   dynamicSubstitutions: true
-  machineType: "E2_HIGHCPU_8"  # Necesario para Vision/Video APIs
+  machineType: "E2_HIGHCPU_8"
