@@ -41,7 +41,7 @@ def download_file(service, filename):
     return file_id
 
 try:
-    send_telegram("🎯 Script 14: Recortando logos inteligentemente...")
+    send_telegram("🎯 Script 14: Ejecutando recortes inteligentes...")
     service = get_drive_service()
     
     download_file(service, 'reporte_marcos_logos.json')
@@ -53,64 +53,39 @@ try:
     
     for item in reporte:
         nombre = item['archivo']
+        lado = item.get('lado_a_cortar')
         logos = item.get('logos_detectados', [])
+        
+        if not lado or not logos:
+            sin_logos += 1
+            continue
         
         file_id = download_file(service, nombre)
         if not file_id: continue
         
-        if not logos:
-            sin_logos += 1
-            continue
-        
         img = Image.open(nombre)
         w, h = img.size
         
-        # Procesar cada logo (normalmente hay 1, pero puede haber más)
-        for logo in logos:
-            vertices = logo['vertices_px']
-            x_vals = [v['x'] for v in vertices]
-            y_vals = [v['y'] for v in vertices]
-            
-            logo_left = min(x_vals)
-            logo_right = max(x_vals)
-            logo_top = min(y_vals)
-            logo_bottom = max(y_vals)
-            logo_width = logo_right - logo_left
-            logo_height = logo_bottom - logo_top
-            
-            # Determinar esquina
-            esquina = ""
-            if logo_top < h * 0.25:
-                esquina += "Sup."
-            elif logo_bottom > h * 0.75:
-                esquina += "Inf."
-            
-            if logo_left < w * 0.25:
-                esquina += "Izq"
-            elif logo_right > w * 0.75:
-                esquina += "Der"
-            
-            # Calcular pérdida de píxeles
-            perdida_y = logo_height * w
-            perdida_x = logo_width * h
-            
-            # Decidir el corte óptimo
-            if perdida_y < perdida_x:
-                if "Sup" in esquina:
-                    img = img.crop((0, int(logo_bottom) + 5, w, h))
-                    decision = "↓arriba"
-                else:
-                    img = img.crop((0, 0, w, int(logo_top) - 5))
-                    decision = "↑abajo"
-            else:
-                if "Izq" in esquina:
-                    img = img.crop((int(logo_right) + 5, 0, w, h))
-                    decision = "→izq"
-                else:
-                    img = img.crop((0, 0, int(logo_left) - 5, h))
-                    decision = "←der"
-            
-            w, h = img.size  # Actualizar dimensiones para próximo logo
+        # Obtener coordenadas del logo
+        logo = logos[0]
+        vertices = logo['vertices_px']
+        x_vals = [v['x'] for v in vertices]
+        y_vals = [v['y'] for v in vertices]
+        
+        logo_left = min(x_vals)
+        logo_right = max(x_vals)
+        logo_top = min(y_vals)
+        logo_bottom = max(y_vals)
+        
+        # Ejecutar el corte según la decisión de Script 13
+        if lado == 'arriba':
+            img = img.crop((0, int(logo_bottom) + 5, w, h))
+        elif lado == 'abajo':
+            img = img.crop((0, 0, w, int(logo_top) - 5))
+        elif lado == 'izquierda':
+            img = img.crop((int(logo_right) + 5, 0, w, h))
+        elif lado == 'derecha':
+            img = img.crop((0, 0, int(logo_left) - 5, h))
         
         img.save(nombre, quality=95)
         media = MediaFileUpload(nombre, mimetype='image/jpeg')
