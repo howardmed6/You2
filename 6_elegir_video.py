@@ -20,6 +20,15 @@ def elegir_video():
     else:
         video_id = identificador
     
+    # Cargar videos subidos
+    try:
+        with open("subidos.json", 'r', encoding='utf-8') as f:
+            subidos = json.load(f)
+    except FileNotFoundError:
+        subidos = []
+    
+    urls_subidos = set(subidos)
+    
     # Cargar data.json
     with open("data.json", 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -30,6 +39,12 @@ def elegir_video():
     
     for video in data:
         if video['video_id'] == video_id and video['status'] == 'seleccionado':
+            # Verificar si ya fue subido
+            if video['url'] in urls_subidos:
+                print(f"⚠️ Este video ya fue subido anteriormente")
+                print(f"📺 {video['title']}")
+                print(f"🔗 {video['url']}")
+                sys.exit(1)
             elegido = video
             elegido['status'] = 'elegido'
         else:
@@ -47,8 +62,14 @@ def elegir_video():
     with open("descargar.json", 'w', encoding='utf-8') as f:
         json.dump([elegido], f, indent=2, ensure_ascii=False)
     
+    # Agregar a subidos.json
+    subidos.append(elegido['url'])
+    with open("subidos.json", 'w', encoding='utf-8') as f:
+        json.dump(subidos, f, indent=2, ensure_ascii=False)
+    
     print(f"✅ Video elegido: {elegido['title']}")
     print(f"📦 Movido a descargar.json")
+    print(f"📝 URL registrada en subidos.json")
     
     # Notificar en Telegram
     if BOT_TOKEN and CHAT_ID:

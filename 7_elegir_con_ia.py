@@ -13,14 +13,24 @@ def elegir_con_ia():
         print("❌ Error: OPENAI_API_KEY no configurada")
         sys.exit(1)
     
+    # Cargar videos subidos
+    try:
+        with open("subidos.json", 'r', encoding='utf-8') as f:
+            subidos = json.load(f)
+    except FileNotFoundError:
+        subidos = []
+    
+    urls_subidos = set(subidos)
+    
     # Cargar videos
     with open("data.json", 'r', encoding='utf-8') as f:
         videos = json.load(f)
     
-    seleccionados = [v for v in videos if v.get('status') == 'seleccionado']
+    # Filtrar seleccionados que NO han sido subidos
+    seleccionados = [v for v in videos if v.get('status') == 'seleccionado' and v['url'] not in urls_subidos]
     
     if not seleccionados:
-        print("❌ No hay videos seleccionados")
+        print("❌ No hay videos seleccionados disponibles (todos ya fueron subidos)")
         sys.exit(1)
     
     print(f"Analizando {len(seleccionados)} videos seleccionados con IA...")
@@ -80,7 +90,13 @@ def elegir_con_ia():
         with open("descargar.json", 'w', encoding='utf-8') as f:
             json.dump([elegido], f, indent=2, ensure_ascii=False)
         
+        # Agregar a subidos.json
+        subidos.append(elegido['url'])
+        with open("subidos.json", 'w', encoding='utf-8') as f:
+            json.dump(subidos, f, indent=2, ensure_ascii=False)
+        
         print(f"✅ Video elegido por IA: {elegido['title']}")
+        print(f"📝 URL registrada en subidos.json")
         
         # Notificar en Telegram
         if BOT_TOKEN and CHAT_ID:
