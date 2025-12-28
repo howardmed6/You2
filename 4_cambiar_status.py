@@ -129,10 +129,22 @@ if __name__ == "__main__":
         else:
             cambiar_a_seleccionado(sys.argv[1])
     else:
-        print("\n📝 Modo interactivo - Cambiar videos a 'seleccionado'")
-        print("💡 Tip: Usa 'python script.py --help' para ver instrucciones\n")
-        ids = input("IDs separados por coma: ")
+        print("\n" + "="*60)
+        print("📝 CAMBIAR VIDEOS A 'SELECCIONADO'")
+        print("="*60)
+        print("\n⚠️ Este script requiere IDs de video")
+        print("\n📖 USO EN CLOUD BUILD:")
+        print("   Se ejecuta automáticamente con la variable _TELEGRAM_IDS")
+        print("\n📖 USO MANUAL:")
+        print("   python script.py ID1,ID2,ID3")
+        print("   python script.py --help  (ver ayuda completa)")
+        print("\n📌 EJEMPLO:")
+        print("   python script.py abc123,def456,ghi789")
+        print("\n💡 TIP: Los IDs deben estar separados por comas\n")
+        print("="*60 + "\n")
+        
+        ids = input("IDs separados por coma (Enter para cancelar): ")
         if ids.strip():
             cambiar_a_seleccionado(ids)
         else:
-            print("❌ No se ingresaron IDs")
+            print("❌ Operación cancelada")
