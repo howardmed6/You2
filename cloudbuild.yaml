@@ -1,5 +1,5 @@
 steps:
-  # Paso 0: Descargar data inicial
+  # Paso inicial: Preparación
   - name: "python:3.11"
     id: "download-data"
     entrypoint: "bash"
@@ -10,7 +10,7 @@ steps:
         python download_data.py
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
 
-  # Script 1
+  # Script 1 + Subida inmediata
   - name: "python:3.11"
     id: "script-1"
     entrypoint: "bash"
@@ -19,7 +19,7 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",1,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 1_obtenerurls.py || exit 1
+          python 1_obtenerurls.py && python upload_data.py || exit 1
         fi
     env: &env_vars
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
@@ -27,7 +27,7 @@ steps:
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["download-data"]
 
-  # Script 2 (Usa OpenAI)
+  # Script 2 (Usa OpenAI) + Subida inmediata
   - name: "python:3.11"
     id: "script-2"
     entrypoint: "bash"
@@ -36,13 +36,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",2,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 2_extraerinfovideospotenciales.py || exit 1
+          python 2_extraerinfovideospotenciales.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["script-1"]
 
-  # Script 3
+  # Script 3 + Subida inmediata
   - name: "python:3.11"
     id: "script-3"
     entrypoint: "bash"
@@ -51,13 +51,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",3,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 3_notificar_descartados.py || exit 1
+          python 3_notificar_descartados.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-2"]
 
-  # Script 4
+  # Script 4 + Subida inmediata
   - name: "python:3.11"
     id: "script-4"
     entrypoint: "bash"
@@ -66,15 +66,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",4,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          if [ -n "${_TELEGRAM_IDS}" ]; then
-            python 4_cambiar_status.py "${_TELEGRAM_IDS}" || exit 1
-          fi
+          python 4_cambiar_status.py "${_TELEGRAM_IDS}" && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-3"]
 
-  # Script 5
+  # Script 5 + Subida inmediata
   - name: "python:3.11"
     id: "script-5"
     entrypoint: "bash"
@@ -83,13 +81,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",5,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 5_limpiar_no_seleccionados.py || exit 1
+          python 5_limpiar_no_seleccionados.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-4"]
 
-  # Script 6
+  # Script 6 + Subida inmediata
   - name: "python:3.11"
     id: "script-6"
     entrypoint: "bash"
@@ -98,15 +96,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",6,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          if [ -n "${_VIDEO_ELEGIDO}" ]; then
-            python 6_elegir_video.py "${_VIDEO_ELEGIDO}" || exit 1
-          fi
+          python 6_elegir_video.py "${_VIDEO_ELEGIDO}" && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-5"]
 
-  # Script 7 (Usa OpenAI)
+  # Script 7 (Usa OpenAI) + Subida inmediata
   - name: "python:3.11"
     id: "script-7"
     entrypoint: "bash"
@@ -115,13 +111,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",7,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 7_elegir_con_ia.py || exit 1
+          python 7_elegir_con_ia.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS", "OPENAI_API_KEY"]
     waitFor: ["script-6"]
 
-  # Script 8
+  # Script 8 + Subida inmediata
   - name: "python:3.11"
     id: "script-8"
     entrypoint: "bash"
@@ -130,13 +126,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",8,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 8_seleccionar_no_shorts.py || exit 1
+          python 8_seleccionar_no_shorts.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-7"]
 
-  # Script 9
+  # Script 9 + Subida inmediata
   - name: "python:3.11"
     id: "script-9"
     entrypoint: "bash"
@@ -145,13 +141,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",9,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 9_analizar_video.py || exit 1
+          python 9_analizar_video.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-8"]
 
-  # Script 10
+  # Script 10 + Subida de imágenes inmediata
   - name: "python:3.11"
     id: "script-10"
     entrypoint: "bash"
@@ -161,12 +157,14 @@ steps:
         if [[ ",${_SCRIPTS}," == *",10,"* ]]; then
           pip install -r requirements.txt --break-system-packages
           python 10_sacar_imagenes.py || exit 1
+          python upload_data.py
+          for i in {1..10}; do [ -f "imagen$i.jpg" ] && python upload_file.py "imagen$i.jpg"; done
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-9"]
 
-  # Script 11
+  # Script 11 + Subida marcos
   - name: "python:3.11"
     id: "script-11"
     entrypoint: "bash"
@@ -175,13 +173,14 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",11,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 11_detectar_marcos.py || exit 1
+          python 11_detectar_marcos.py && python upload_data.py || exit 1
+          [ -f "marcos.json" ] && python upload_file.py "marcos.json"
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-10"]
 
-  # Script 12
+  # Script 12 + Subida
   - name: "python:3.11"
     id: "script-12"
     entrypoint: "bash"
@@ -190,13 +189,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",12,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 12_recortar_marcos.py || exit 1
+          python 12_recortar_marcos.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-11"]
 
-  # Script 13
+  # Script 13 + Subida logo
   - name: "python:3.11"
     id: "script-13"
     entrypoint: "bash"
@@ -205,13 +204,14 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",13,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 13_detectar_logo.py || exit 1
+          python 13_detectar_logo.py && python upload_data.py || exit 1
+          [ -f "logo.json" ] && python upload_file.py "logo.json"
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-12"]
 
-  # Script 14
+  # Script 14 al 17 + Subidas finales
   - name: "python:3.11"
     id: "script-14"
     entrypoint: "bash"
@@ -220,13 +220,12 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",14,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 14_recortar_logo.py || exit 1
+          python 14_recortar_logo.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-13"]
 
-  # Script 15
   - name: "python:3.11"
     id: "script-15"
     entrypoint: "bash"
@@ -235,13 +234,13 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",15,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 15_miniatura_final.py || exit 1
+          python 15_miniatura_final.py && python upload_data.py || exit 1
+          [ -f "miniatura_final.jpg" ] && python upload_file.py "miniatura_final.jpg"
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-14"]
 
-  # Script 16
   - name: "python:3.11"
     id: "script-16"
     entrypoint: "bash"
@@ -250,13 +249,12 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",16,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 16_cambio_nombres_imagenes_y_video.py || exit 1
+          python 16_cambio_nombres_imagenes_y_video.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-15"]
 
-  # Script 17
   - name: "python:3.11"
     id: "script-17"
     entrypoint: "bash"
@@ -265,23 +263,11 @@ steps:
       - |
         if [[ ",${_SCRIPTS}," == *",17,"* ]]; then
           pip install -r requirements.txt --break-system-packages
-          python 17_renombrar_imagenes.py || exit 1
+          python 17_renombrar_imagenes.py && python upload_data.py || exit 1
         fi
     env: *env_vars
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["script-16"]
-
-  # Paso final: Sincronización final si fuera necesaria
-  - name: "python:3.11"
-    id: "upload-data"
-    entrypoint: "bash"
-    args:
-      - "-c"
-      - |
-        pip install -r requirements.txt --break-system-packages
-        python upload_data.py
-    secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
-    waitFor: ["script-17"]
 
 availableSecrets:
   secretManager:
