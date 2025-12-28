@@ -1,3 +1,6 @@
+# Configuración global
+timeout: "3600s"
+
 steps:
   # Paso 1: Instalar dependencias y descargar data inicial
   - name: "python:3.11"
@@ -49,7 +52,7 @@ steps:
             16) python 16_cambio_nombres_imagenes_y_video.py && python upload_data.py || exit 1 ;;
             17) python 17_renombrar_imagenes.py && python upload_data.py || exit 1 ;;
           esac
-          echo ">>> Script $script_num completado y cambios subidos a Drive"
+          echo ">>> Script $script_num completado y sincronizado con Drive"
         done
     env:
       - "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN}"
@@ -91,4 +94,3 @@ options:
   substitutionOption: "ALLOW_LOOSE"
   dynamicSubstitutions: true
   machineType: "E2_HIGHCPU_8"
-  timeout: "3600s"
