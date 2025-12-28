@@ -3,8 +3,6 @@ import json
 import sys
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-import glob
 import requests
 
 FOLDER_ID = "1-NXHDM29JFrNpzVxMFmfFLMMaNgy44ML"
@@ -23,67 +21,42 @@ def get_drive_service():
     creds = Credentials.from_service_account_info(creds_json, scopes=['https://www.googleapis.com/auth/drive'])
     return build('drive', 'v3', credentials=creds)
 
-def update_file_in_drive(service, filename, folder_id):
-    """Actualiza un archivo existente en Google Drive"""
-    try:
-        # Buscar el archivo en Drive
-        query = f"'{folder_id}' in parents and name='{filename}' and trashed=false"
-        results = service.files().list(q=query, fields="files(id)").execute()
-        files = results.get('files', [])
-        
-        if not files:
-            send_telegram(f"⚠️ {filename} no existe en Drive, se omite")
-            return False
-        
-        # Actualizar el archivo
-        file_id = files[0]['id']
-        media = MediaFileUpload(filename, mimetype='image/jpeg')
-        service.files().update(fileId=file_id, media_body=media).execute()
-        return True
-    except Exception as e:
-        send_telegram(f"❌ Error actualizando {filename}: {str(e)}")
-        return False
-
 try:
-    send_telegram("🚀 Script 17: Renombrando imágenes JPG a imagen1.jpg, imagen2.jpg...")
+    send_telegram("🚀 Script 17: Renombrando 10 imágenes JPG...")
     service = get_drive_service()
     
-    # Buscar todos los archivos JPG en el directorio actual
-    jpg_files = glob.glob('*.jpg') + glob.glob('*.jpeg')
+    # Buscar todas las imágenes JPG en Drive (excluyendo las que ya son imagen1.jpg, etc)
+    query = f"'{FOLDER_ID}' in parents and (mimeType='image/jpeg' or name contains '.jpg') and trashed=false"
+    results = service.files().list(q=query, fields="files(id, name)", orderBy="name").execute()
+    files = results.get('files', [])
     
-    # Filtrar solo los que NO sean imagen1.jpg, imagen2.jpg, etc. (para evitar conflictos)
-    jpg_files = [f for f in jpg_files if not f.startswith('imagen') or not f[6:-4].isdigit()]
+    # Filtrar las que NO son imagen1.jpg, imagen2.jpg, etc.
+    files = [f for f in files if not (f['name'].startswith('imagen') and f['name'][6:-4].isdigit())]
     
-    if not jpg_files:
-        send_telegram("⚠️ No se encontraron archivos JPG para renombrar")
+    if not files:
+        send_telegram("⚠️ No se encontraron imágenes JPG para renombrar")
         sys.exit(0)
     
-    # Ordenar alfabéticamente para consistencia
-    jpg_files.sort()
+    # Limitar a 10 imágenes
+    files = files[:10]
     
-    # Limitar a máximo 10 imágenes
-    jpg_files = jpg_files[:10]
+    send_telegram(f"📸 Renombrando {len(files)} imágenes...")
     
-    send_telegram(f"📸 Se encontraron {len(jpg_files)} imágenes para renombrar")
-    
-    # Renombrar y subir cada archivo
-    for i, original_file in enumerate(jpg_files, 1):
+    for i, file_info in enumerate(files, 1):
+        file_id = file_info['id']
+        nombre_original = file_info['name']
         nuevo_nombre = f'imagen{i}.jpg'
         
-        # Renombrar localmente
-        if os.path.exists(nuevo_nombre):
-            os.remove(nuevo_nombre)  # Eliminar si ya existe
+        # Renombrar directamente en Drive
+        service.files().update(
+            fileId=file_id,
+            body={'name': nuevo_nombre}
+        ).execute()
         
-        os.rename(original_file, nuevo_nombre)
-        
-        # Actualizar en Drive
-        if update_file_in_drive(service, nuevo_nombre, FOLDER_ID):
-            send_telegram(f"✅ {original_file} → {nuevo_nombre} (actualizado en Drive)")
-        else:
-            send_telegram(f"⚠️ {original_file} → {nuevo_nombre} (local, pero no en Drive)")
+        print(f"✅ {nombre_original} → {nuevo_nombre}")
     
-    send_telegram(f"🎉 Proceso completado: {len(jpg_files)} imágenes renombradas")
+    send_telegram(f"✅ Script 17: {len(files)} imágenes renombradas correctamente")
 
 except Exception as e:
-    send_telegram(f"❌ Error en Script 17: {str(e)}")
+    send_telegram(f"❌ Script 17: {str(e)}")
     sys.exit(1)
