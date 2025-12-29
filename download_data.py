@@ -1,7 +1,6 @@
 import os
 import json
 import sys
-
 print("=== INICIANDO DOWNLOAD_DATA.PY ===")
 print(f"Python version: {sys.version}")
 
@@ -44,43 +43,49 @@ try:
     service = build('drive', 'v3', credentials=credentials)
     print("✅ Servicio de Drive construido")
     
-    # Buscar archivo
-    print(f"🔍 Buscando data.json en carpeta: {folder_id}")
-    results = service.files().list(
-        q=f"'{folder_id}' in parents and name='data.json' and trashed=false",
-        fields="files(id, name)"
-    ).execute()
+    # Lista de archivos a descargar
+    archivos = ['data.json', 'subidos.json']
     
-    files = results.get('files', [])
-    print(f"Archivos encontrados: {len(files)}")
+    for archivo in archivos:
+        print(f"\n🔍 Buscando {archivo} en carpeta: {folder_id}")
+        results = service.files().list(
+            q=f"'{folder_id}' in parents and name='{archivo}' and trashed=false",
+            fields="files(id, name)"
+        ).execute()
+        
+        files = results.get('files', [])
+        print(f"Archivos encontrados: {len(files)}")
+        
+        if files:
+            file_id = files[0]['id']
+            print(f"✅ Archivo encontrado: {files[0]['name']} (ID: {file_id})")
+            
+            # Descargar
+            request = service.files().get_media(fileId=file_id)
+            with open(archivo, 'wb') as f:
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
+            
+            size = os.path.getsize(archivo)
+            print(f"✅ Descargado: {size} bytes")
+            
+            # Validar JSON
+            with open(archivo, 'r') as f:
+                data = json.load(f)
+            
+            if isinstance(data, list):
+                print(f"✅ JSON válido con {len(data)} registros")
+            else:
+                print(f"✅ JSON válido")
+        else:
+            print(f"⚠️ {archivo} no encontrado, creando vacío")
+            with open(archivo, 'w') as f:
+                json.dump([], f)
+            print(f"✅ {archivo} vacío creado")
     
-    if files:
-        file_id = files[0]['id']
-        print(f"✅ Archivo encontrado: {files[0]['name']} (ID: {file_id})")
-        
-        # Descargar
-        request = service.files().get_media(fileId=file_id)
-        with open('data.json', 'wb') as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                status, done = downloader.next_chunk()
-        
-        size = os.path.getsize('data.json')
-        print(f"✅ Descargado: {size} bytes")
-        
-        # Validar JSON
-        with open('data.json', 'r') as f:
-            data = json.load(f)
-        print(f"✅ JSON válido con {len(data)} registros")
-    else:
-        print("⚠️ Archivo no encontrado, creando vacío")
-        with open('data.json', 'w') as f:
-            json.dump([], f)
-        print("✅ Archivo vacío creado")
-    
-    print("=== DOWNLOAD COMPLETADO ===")
-
+    print("\n=== DOWNLOAD COMPLETADO ===")
 except Exception as e:
     print(f"❌ ERROR: {type(e).__name__}: {e}")
     import traceback
