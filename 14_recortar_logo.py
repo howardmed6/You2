@@ -77,23 +77,27 @@ try:
         logo_top = min(y_vals)
         logo_bottom = max(y_vals)
         
-        # Ejecutar el corte según la decisión de Script 13
-        if lado == 'arriba':
-            img = img.crop((0, int(logo_bottom) + 5, w, h))
-        elif lado == 'abajo':
-            img = img.crop((0, 0, w, int(logo_top) - 5))
-        elif lado == 'izquierda':
-            img = img.crop((int(logo_right) + 5, 0, w, h))
-        elif lado == 'derecha':
-            img = img.crop((0, 0, int(logo_left) - 5, h))
-        
-        img.save(nombre, quality=95)
-        media = MediaFileUpload(nombre, mimetype='image/jpeg')
-        service.files().update(fileId=file_id, media_body=media).execute()
-        recortadas += 1
+        try:
+            # Ejecutar el corte según la decisión de Script 13
+            if lado == 'arriba':
+                img = img.crop((0, int(logo_bottom) + 5, w, h))
+            elif lado == 'abajo':
+                img = img.crop((0, 0, w, int(logo_top) - 5))
+            elif lado == 'izquierda':
+                img = img.crop((int(logo_right) + 5, 0, w, h))
+            elif lado == 'derecha':
+                img = img.crop((0, 0, int(logo_left) - 5, h))
+            
+            img.save(nombre, quality=95)
+            media = MediaFileUpload(nombre, mimetype='image/jpeg')
+            service.files().update(fileId=file_id, media_body=media).execute()
+            recortadas += 1
+        except Exception:
+            # Si falla el crop (coordenadas inválidas por logo en borde), saltamos
+            sin_logos += 1
+            continue
     
     send_telegram(f"✅ Script 14: {recortadas} logos recortados, {sin_logos} sin logos")
-
 except Exception as e:
     send_telegram(f"❌ Script 14: {str(e)}")
     sys.exit(1)
