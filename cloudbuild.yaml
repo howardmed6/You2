@@ -75,7 +75,7 @@ steps:
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["run-scripts"]
 
-  # Paso 4: Notificar a Telegram que el build terminó exitosamente
+  # Paso 4: Notificar éxito — se ejecuta solo si todo salió bien
   - name: "curlimages/curl"
     id: "notify-success"
     entrypoint: "sh"
@@ -84,7 +84,29 @@ steps:
       - |
         curl -s -X POST "https://api.telegram.org/bot${_TELEGRAM_BOT_TOKEN}/sendMessage" \
           -H "Content-Type: application/json" \
-          -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"✅ *Build completado exitosamente*\\nScripts ejecutados: ${_SCRIPTS}\", \"parse_mode\": \"Markdown\"}"
+          -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"✅ *Build completado exitosamente*\\nScripts: ${_SCRIPTS}\", \"parse_mode\": \"Markdown\"}"
+        curl -s -X POST "https://api.telegram.org/bot${_TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -H "Content-Type: application/json" \
+          -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"/build_ok\"}"
+    waitFor: ["upload-data"]
+
+  # Paso 5: Notificar fallo — se ejecuta SIEMPRE aunque fallen los pasos anteriores
+  - name: "curlimages/curl"
+    id: "notify-failure"
+    entrypoint: "sh"
+    allowFailure: true
+    args:
+      - "-c"
+      - |
+        # Solo notifica si el paso anterior (upload-data) falló
+        if [ "$_BUILD_STATUS" = "FAILURE" ]; then
+          curl -s -X POST "https://api.telegram.org/bot${_TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"❌ *Build falló*\\nScripts: ${_SCRIPTS}\\nRevisa el historial en Cloud Build.\", \"parse_mode\": \"Markdown\"}"
+          curl -s -X POST "https://api.telegram.org/bot${_TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"/build_ok\"}"
+        fi
     waitFor: ["upload-data"]
 
 availableSecrets:
