@@ -75,6 +75,18 @@ steps:
     secretEnv: ["GOOGLE_DRIVE_CREDENTIALS"]
     waitFor: ["run-scripts"]
 
+  # Paso 4: Notificar a Telegram que el build terminó exitosamente
+  - name: "curlimages/curl"
+    id: "notify-success"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        curl -s -X POST "https://api.telegram.org/bot${_TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -H "Content-Type: application/json" \
+          -d "{\"chat_id\": \"${_TELEGRAM_CHAT_ID}\", \"text\": \"✅ *Build completado exitosamente*\\nScripts ejecutados: ${_SCRIPTS}\", \"parse_mode\": \"Markdown\"}"
+    waitFor: ["upload-data"]
+
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/GOOGLE_DRIVE_CREDENTIALS/versions/latest
