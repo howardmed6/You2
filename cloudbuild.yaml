@@ -127,4 +127,4 @@ options:
   logging: CLOUD_LOGGING_ONLY
   substitutionOption: "ALLOW_LOOSE"
   dynamicSubstitutions: true
-  machineType: "E2_HIGHCPU_8"
+  machineType: "E2_STANDARD_2"
